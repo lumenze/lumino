@@ -1,0 +1,7 @@
+FROM node:20-alpine
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+COPY apps/novaconnect/package.json .
+RUN pnpm install 2>/dev/null || true
+EXPOSE 3000
+CMD ["echo", "NovaConnect: Phase 2"]

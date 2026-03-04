@@ -1,0 +1,104 @@
+# Lumino — Development Stack
+# Usage: docker compose up -d
+# All services + databases + reference apps
+
+services:
+  # ── Databases ────────────────────────────────────────────────────────
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lumino-postgres
+    environment:
+      POSTGRES_USER: lumino
+      POSTGRES_PASSWORD: lumino
+      POSTGRES_DB: lumino
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumino"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lumino-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Lumino Services ──────────────────────────────────────────────────
+
+  server:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.server
+    container_name: lumino-server
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://lumino:lumino@postgres:5432/lumino
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-in-production
+      AI_SERVICE_URL: http://ai-services:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../../packages/server/src:/app/packages/server/src
+      - ../../packages/shared/src:/app/packages/shared/src
+
+  ai-services:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.ai
+    container_name: lumino-ai
+    ports:
+      - "8000:8000"
+    environment:
+      LUMINO_AI_AI_PROVIDER: cloud
+      LUMINO_AI_DATABASE_URL: postgresql://lumino:lumino@postgres:5432/lumino
+      LUMINO_AI_REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Reference Apps ───────────────────────────────────────────────────
+
+  novapay:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.novapay
+    container_name: lumino-novapay
+    ports:
+      - "3100:3000"
+    environment:
+      LUMINO_SDK_URL: http://localhost:3000/sdk/v1/lumino.js
+
+  novaconnect:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.novaconnect
+    container_name: lumino-novaconnect
+    ports:
+      - "3200:3000"
+    environment:
+      LUMINO_SDK_URL: http://localhost:3000/sdk/v1/lumino.js
+
+volumes:
+  postgres_data:
+  redis_data:

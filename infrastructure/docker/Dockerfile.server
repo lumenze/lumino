@@ -1,0 +1,27 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+
+# Install dependencies
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/server/package.json packages/server/
+RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+
+# Copy source
+COPY tsconfig.json ./
+COPY packages/shared/ packages/shared/
+COPY packages/server/ packages/server/
+
+# Build shared first, then server
+RUN pnpm --filter @lumino/shared build
+RUN cd packages/server && npx prisma generate
+RUN pnpm --filter @lumino/server build
+
+# Run
+FROM node:20-alpine
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+COPY --from=base /app ./
+EXPOSE 3000
+CMD ["node", "packages/server/dist/main.js"]

@@ -1,0 +1,159 @@
+// Lumino Database Schema
+// PostgreSQL 16 + pgvector extension
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// ── Walkthroughs ──────────────────────────────────────────────────────
+
+model Walkthrough {
+  id             String              @id @default(cuid())
+  appId          String              @map("app_id")
+  currentVersion Int                 @default(1) @map("current_version")
+  status         WalkthroughStatus   @default(DRAFT)
+  createdBy      String              @map("created_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  publishedAt    DateTime?           @map("published_at")
+  publishedBy    String?             @map("published_by")
+
+  // Relations
+  versions       WalkthroughVersion[]
+  progress       UserProgress[]
+  healthRecords  WalkthroughHealthRecord[]
+  events         AnalyticsEvent[]
+
+  @@index([appId, status])
+  @@index([createdBy])
+  @@map("walkthroughs")
+}
+
+model WalkthroughVersion {
+  id             String    @id @default(cuid())
+  walkthroughId  String    @map("walkthrough_id")
+  version        Int
+  definition     Json      // JSONB — WalkthroughDefinition
+  embedding      Unsupported("vector(384)")? // pgvector for NL search
+  createdBy      String    @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  changelog      String?
+
+  // Relations
+  walkthrough    Walkthrough @relation(fields: [walkthroughId], references: [id], onDelete: Cascade)
+
+  @@unique([walkthroughId, version])
+  @@index([walkthroughId])
+  @@map("walkthrough_versions")
+}
+
+// ── User Progress ─────────────────────────────────────────────────────
+
+model UserProgress {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  walkthroughId      String    @map("walkthrough_id")
+  walkthroughVersion Int       @map("walkthrough_version")
+  currentStepId      String    @map("current_step_id")
+  currentStepOrder   Int       @map("current_step_order")
+  completed          Boolean   @default(false)
+  startedAt          DateTime  @default(now()) @map("started_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  completedAt        DateTime? @map("completed_at")
+
+  // Relations
+  walkthrough        Walkthrough @relation(fields: [walkthroughId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, walkthroughId])
+  @@index([userId])
+  @@index([walkthroughId])
+  @@map("user_progress")
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────
+
+model AnalyticsEvent {
+  id                 String    @id @default(cuid())
+  type               String    // AnalyticsEventType
+  userId             String    @map("user_id")
+  walkthroughId      String    @map("walkthrough_id")
+  walkthroughVersion Int       @map("walkthrough_version")
+  stepId             String?   @map("step_id")
+  sessionId          String    @map("session_id")
+  pageUrl            String    @map("page_url")
+  timestamp          DateTime  @default(now())
+  metadata           Json?
+
+  // Relations
+  walkthrough        Walkthrough @relation(fields: [walkthroughId], references: [id], onDelete: Cascade)
+
+  @@index([walkthroughId, type])
+  @@index([userId])
+  @@index([timestamp])
+  @@index([sessionId])
+  @@map("analytics_events")
+}
+
+// Pre-computed aggregates (populated by background job)
+model AnalyticsSummary {
+  id             String   @id @default(cuid())
+  walkthroughId  String   @map("walkthrough_id")
+  period         String   // "hourly" | "daily"
+  periodStart    DateTime @map("period_start")
+  impressions    Int      @default(0)
+  starts         Int      @default(0)
+  completions    Int      @default(0)
+  abandonments   Int      @default(0)
+  avgTimeSeconds Float    @default(0) @map("avg_time_seconds")
+  stepDropOff    Json?    @map("step_drop_off") // { stepId: dropCount }
+
+  @@unique([walkthroughId, period, periodStart])
+  @@index([walkthroughId, period])
+  @@map("analytics_summaries")
+}
+
+// ── Health ─────────────────────────────────────────────────────────────
+
+model WalkthroughHealthRecord {
+  id                 String        @id @default(cuid())
+  walkthroughId      String        @map("walkthrough_id")
+  walkthroughVersion Int           @map("walkthrough_version")
+  overallScore       Int           // 0-100
+  status             HealthStatus  @default(HEALTHY)
+  checkedAt          DateTime      @default(now()) @map("checked_at")
+  stepResults        Json          // StepHealth[]
+  autoHealsCount     Int           @default(0) @map("auto_heals_count")
+
+  // Relations
+  walkthrough        Walkthrough   @relation(fields: [walkthroughId], references: [id], onDelete: Cascade)
+
+  @@index([walkthroughId])
+  @@index([checkedAt])
+  @@map("walkthrough_health_records")
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────
+
+enum WalkthroughStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+
+  @@map("walkthrough_status")
+}
+
+enum HealthStatus {
+  HEALTHY
+  WARNING
+  CRITICAL
+
+  @@map("health_status")
+}

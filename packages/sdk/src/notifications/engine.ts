@@ -1,0 +1,238 @@
+import type { WalkthroughDefinition } from '@lumino/shared';
+import type { ShadowDomManager } from '../core/shadow-dom';
+import type { ApiClient } from '../core/api-client';
+import { EventBus, LuminoEvent } from '../core/event-bus';
+
+interface NotificationDeps {
+  shadowDom: ShadowDomManager;
+  apiClient: ApiClient;
+  eventBus: EventBus;
+}
+
+interface PendingNotification {
+  walkthroughId: string;
+  definition: WalkthroughDefinition;
+}
+
+/**
+ * NotificationEngine
+ *
+ * Shows smart notifications for available walkthroughs.
+ * Renders inside shadow DOM so styles don't leak.
+ * Respects rate limits and dismissed state.
+ */
+export class NotificationEngine {
+  private deps: NotificationDeps;
+  private containerEl: HTMLElement | null = null;
+  private queue: PendingNotification[] = [];
+  private dismissedIds = new Set<string>();
+  private shownIds = new Set<string>();
+  private showing = false;
+  private paused = false;
+
+  /** Callback when user clicks "Show Me How" */
+  public onStartWalkthrough: ((walkthroughId: string) => void) | null = null;
+
+  constructor(deps: NotificationDeps) {
+    this.deps = deps;
+  }
+
+  async start(): Promise<void> {
+    this.containerEl = this.deps.shadowDom.getContainer('notifications');
+    // Clear any stale notifications from previous init (shadow DOM reuse)
+    this.containerEl.innerHTML = '';
+    this.deps.shadowDom.appendStyles(NOTIFICATION_CSS);
+
+    // Load dismissed from sessionStorage
+    try {
+      const dismissed = sessionStorage.getItem('lumino_dismissed');
+      if (dismissed) {
+        for (const id of JSON.parse(dismissed)) {
+          this.dismissedIds.add(id);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  stop(): void {
+    if (this.containerEl) {
+      this.containerEl.innerHTML = '';
+    }
+    this.queue = [];
+    this.showing = false;
+    this.paused = false;
+  }
+
+  pause(): void {
+    this.paused = true;
+  }
+
+  resume(): void {
+    this.paused = false;
+    if (!this.showing) {
+      this.showNext();
+    }
+  }
+
+  /**
+   * Queue a notification for a walkthrough.
+   * Won't show if already dismissed this session.
+   */
+  enqueue(walkthroughId: string, definition: WalkthroughDefinition): void {
+    if (this.dismissedIds.has(walkthroughId)) return;
+    // Deduplicate — don't enqueue if already queued, showing, or previously shown
+    if (this.shownIds.has(walkthroughId)) return;
+    if (this.queue.some((n) => n.walkthroughId === walkthroughId)) return;
+    this.queue.push({ walkthroughId, definition });
+    if (!this.showing && !this.paused) {
+      this.showNext();
+    }
+  }
+
+  private showNext(): void {
+    if (this.paused) {
+      return;
+    }
+
+    const next = this.queue.shift();
+    if (!next || !this.containerEl) {
+      this.showing = false;
+      return;
+    }
+
+    this.showing = true;
+    const { walkthroughId, definition } = next;
+    this.shownIds.add(walkthroughId);
+
+    const el = document.createElement('div');
+    el.className = 'lm-notif';
+
+    const stepCount = definition.steps?.length ?? 0;
+    const estMinutes = Math.max(1, Math.round(stepCount * 0.5));
+    const metaText = stepCount > 0 ? `${stepCount} step${stepCount !== 1 ? 's' : ''} · ~${estMinutes} min` : '';
+
+    el.innerHTML = `
+      <div class="lm-notif-badge">✦ Lumino Guide</div>
+      <h4 class="lm-notif-title">${this.esc(definition.title)}</h4>
+      <p class="lm-notif-desc">${this.esc(definition.description)}</p>
+      ${metaText ? `<div class="lm-notif-meta">${metaText}</div>` : ''}
+      <div class="lm-notif-actions">
+        <button class="lm-notif-cta">Show Me How →</button>
+        <button class="lm-notif-dismiss">Later</button>
+      </div>
+    `;
+
+    // Wire buttons
+    const cta = el.querySelector('.lm-notif-cta') as HTMLElement;
+    const dismiss = el.querySelector('.lm-notif-dismiss') as HTMLElement;
+
+    cta.addEventListener('click', () => {
+      this.pause();
+      this.hide(el, false);
+      this.deps.eventBus.emit(LuminoEvent.NotificationDismissed, { walkthroughId, action: 'start' });
+      if (this.onStartWalkthrough) {
+        this.onStartWalkthrough(walkthroughId);
+      }
+    });
+
+    dismiss.addEventListener('click', () => {
+      this.dismiss(walkthroughId, el);
+    });
+
+    this.containerEl.appendChild(el);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      el.classList.add('lm-notif-visible');
+    });
+
+    this.deps.eventBus.emit(LuminoEvent.NotificationShown, { walkthroughId });
+  }
+
+  private dismiss(walkthroughId: string, el: HTMLElement): void {
+    this.dismissedIds.add(walkthroughId);
+    try {
+      sessionStorage.setItem('lumino_dismissed', JSON.stringify([...this.dismissedIds]));
+    } catch { /* ignore */ }
+
+    this.hide(el);
+    this.deps.eventBus.emit(LuminoEvent.NotificationDismissed, { walkthroughId, action: 'dismiss' });
+  }
+
+  private hide(el: HTMLElement, showNextAfterHide = true): void {
+    el.classList.remove('lm-notif-visible');
+    el.addEventListener('transitionend', () => {
+      el.remove();
+      this.showing = false;
+      if (showNextAfterHide && !this.paused) {
+        // Show next in queue after brief delay
+        setTimeout(() => this.showNext(), 500);
+      }
+    }, { once: true });
+  }
+
+  private esc(str: string): string {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+}
+
+const NOTIFICATION_CSS = `
+  .lm-notif {
+    position: fixed; top: 20px; right: 20px; width: 340px;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 16px; padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04), 0 0 40px rgba(224,122,47,0.06);
+    z-index: 100001; pointer-events: auto;
+    transform: translateY(-20px) scale(0.96); opacity: 0; filter: blur(4px);
+    transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+    border-left: 4px solid transparent;
+    border-image: linear-gradient(180deg, #E07A2F, #F5A623) 1;
+    border-image-slice: 1;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .lm-notif-visible { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
+
+  .lm-notif-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(224,122,47,0.12); color: #E07A2F;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 10px; border-radius: 100px; letter-spacing: 0.5px;
+  }
+  .lm-notif-title {
+    font-size: 15px; font-weight: 700; margin: 10px 0 6px; color: #1F2937;
+  }
+  .lm-notif-desc {
+    font-size: 12px; color: #6B7280; line-height: 1.6; margin-bottom: 8px;
+  }
+  .lm-notif-meta {
+    font-size: 11px; color: #9CA3AF; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .lm-notif-actions { display: flex; gap: 8px; }
+
+  .lm-notif-cta {
+    flex: 1; padding: 10px 16px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, #E07A2F, #F5A623);
+    color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: inherit; box-shadow: 0 4px 16px rgba(224,122,47,0.3);
+    transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .lm-notif-cta::after {
+    content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+    animation: lm-shimmer 3s ease-in-out infinite;
+  }
+  @keyframes lm-shimmer { 0% { left: -100%; } 50%,100% { left: 100%; } }
+  .lm-notif-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(224,122,47,0.4); }
+
+  .lm-notif-dismiss {
+    padding: 10px 16px; border-radius: 10px;
+    border: 1px solid #E5E7EB; background: transparent;
+    color: #6B7280; font-size: 13px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  .lm-notif-dismiss:hover { background: #F5F6FA; }
+`;

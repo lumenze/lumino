@@ -1,0 +1,52 @@
+{
+  "name": "lumino",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lumino — The Only AI-Native Digital Adoption Layer",
+  "license": "UNLICENSED",
+  "author": "Lumenze",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:sdk": "pnpm --filter @lumino/sdk build",
+    "build:server": "pnpm --filter @lumino/server build",
+    "build:ai": "pnpm --filter @lumino/ai-services build",
+    "dev": "pnpm -r --parallel dev",
+    "dev:start": "bash infrastructure/scripts/dev-start.sh",
+    "dev:sdk": "pnpm --filter @lumino/sdk dev",
+    "dev:server": "pnpm --filter @lumino/server dev",
+    "dev:ai": "pnpm --filter @lumino/ai-services dev",
+    "dev:novapay": "pnpm --filter @lumino/novapay dev",
+    "dev:novaconnect": "pnpm --filter @lumino/novaconnect dev",
+    "test": "pnpm -r test",
+    "test:sdk": "pnpm --filter @lumino/sdk test",
+    "test:server": "pnpm --filter @lumino/server test",
+    "test:ai": "pnpm --filter @lumino/ai-services test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "docker:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
+    "docker:build": "docker compose -f infrastructure/docker/docker-compose.yml build",
+    "db:migrate": "pnpm --filter @lumino/server db:migrate",
+    "db:seed": "pnpm --filter @lumino/server db:seed",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.5.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "*.{json,md}": ["prettier --write"]
+  }
+}
