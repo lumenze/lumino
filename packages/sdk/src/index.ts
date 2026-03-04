@@ -24,6 +24,111 @@ import { NotificationEngine } from './notifications/engine';
 import { EventBus, LuminoEvent } from './core/event-bus';
 import { Logger } from './utils/logger';
 
+type LuminoScriptConfig = {
+  appId: string;
+  tokenEndpoint?: string;
+  token?: string;
+  apiUrl: string;
+  environment: 'development' | 'staging' | 'production';
+  debug: boolean;
+  roleParam: string;
+  roleStorageKey?: string;
+  autoInit: boolean;
+};
+
+type LuminoErrorCode =
+  | 'LUMINO_CONFIG_ERROR'
+  | 'LUMINO_TOKEN_FETCH_ERROR'
+  | 'LUMINO_INIT_ERROR';
+
+function emitLuminoEvent(name: 'lumino:ready' | 'lumino:error', detail: Record<string, unknown>): void {
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+function emitLuminoError(code: LuminoErrorCode, message: string, details?: unknown): void {
+  emitLuminoEvent('lumino:error', { code, message, details });
+}
+
+function parseBoolean(value: string | null, fallback: boolean): boolean {
+  if (value === null) return fallback;
+  return value.toLowerCase() === 'true';
+}
+
+function parseEnvironment(value: string | null): LuminoScriptConfig['environment'] {
+  if (value === 'development' || value === 'staging' || value === 'production') {
+    return value;
+  }
+  return 'production';
+}
+
+function readScriptConfig(script: HTMLScriptElement): LuminoScriptConfig {
+  const appId = script.getAttribute('data-lumino-app-id')?.trim() ?? '';
+  const tokenEndpoint = script.getAttribute('data-lumino-token-endpoint')?.trim() || undefined;
+  const token = script.getAttribute('data-lumino-token')?.trim() || undefined;
+
+  if (!appId) {
+    throw new Error('Missing required attribute: data-lumino-app-id');
+  }
+  if (!tokenEndpoint && !token) {
+    throw new Error('Missing auth configuration: provide data-lumino-token-endpoint or data-lumino-token');
+  }
+
+  return {
+    appId,
+    tokenEndpoint,
+    token,
+    apiUrl: script.getAttribute('data-lumino-api-url')?.trim() || '/lumino',
+    environment: parseEnvironment(script.getAttribute('data-lumino-environment')),
+    debug: parseBoolean(script.getAttribute('data-lumino-debug'), false),
+    roleParam: script.getAttribute('data-lumino-role-param')?.trim() || 'role',
+    roleStorageKey: script.getAttribute('data-lumino-role-storage-key')?.trim() || undefined,
+    autoInit: parseBoolean(script.getAttribute('data-lumino-auto-init'), true),
+  };
+}
+
+async function fetchTokenFromEndpoint(config: LuminoScriptConfig): Promise<string> {
+  if (!config.tokenEndpoint) {
+    throw new Error('Token endpoint missing');
+  }
+
+  const endpointUrl = new URL(config.tokenEndpoint, window.location.origin);
+  if (config.roleStorageKey) {
+    const role = localStorage.getItem(config.roleStorageKey);
+    if (role) {
+      endpointUrl.searchParams.set(config.roleParam, role);
+    }
+  }
+
+  const response = await fetch(endpointUrl.toString(), { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`Token endpoint returned ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    const json = await response.json();
+    const token = json?.token ?? json?.data?.token;
+    if (!token || typeof token !== 'string') {
+      throw new Error('Token endpoint JSON response missing token');
+    }
+    return token;
+  }
+
+  const textToken = (await response.text()).trim();
+  if (!textToken) {
+    throw new Error('Token endpoint returned empty token');
+  }
+  return textToken;
+}
+
+function findLuminoScript(script?: HTMLScriptElement): HTMLScriptElement | null {
+  if (script) return script;
+  if (document.currentScript instanceof HTMLScriptElement) {
+    return document.currentScript;
+  }
+  return document.querySelector('script[data-lumino-app-id]');
+}
+
 export class Lumino {
   private static instance: Lumino | null = null;
   private static bootstrapping = false;
@@ -408,11 +513,69 @@ const AUTHOR_FAB_CSS = `
 declare global {
   interface Window {
     Lumino: typeof Lumino;
+    LuminoBootstrap: {
+      initFromScript: (script?: HTMLScriptElement) => Promise<Lumino | null>;
+    };
   }
 }
 
 if (typeof window !== 'undefined') {
   window.Lumino = Lumino;
+}
+
+export const LuminoBootstrap = {
+  async initFromScript(script?: HTMLScriptElement): Promise<Lumino | null> {
+    const scriptEl = findLuminoScript(script);
+    if (!scriptEl) {
+      return null;
+    }
+
+    let config: LuminoScriptConfig;
+    try {
+      config = readScriptConfig(scriptEl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid SDK config';
+      console.error('[Lumino] LUMINO_CONFIG_ERROR:', message);
+      emitLuminoError('LUMINO_CONFIG_ERROR', message, error);
+      return null;
+    }
+
+    if (!config.autoInit) {
+      return null;
+    }
+
+    try {
+      const sdk = await Lumino.init({
+        appId: config.appId,
+        auth: async () => {
+          if (config.token) return config.token;
+          try {
+            return await fetchTokenFromEndpoint(config);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Token fetch failed';
+            console.error('[Lumino] LUMINO_TOKEN_FETCH_ERROR:', message);
+            emitLuminoError('LUMINO_TOKEN_FETCH_ERROR', message, error);
+            throw error;
+          }
+        },
+        environment: config.environment,
+        apiUrl: config.apiUrl,
+        debug: config.debug,
+      });
+      emitLuminoEvent('lumino:ready', { appId: config.appId, version: sdk.version });
+      return sdk;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'SDK initialization failed';
+      console.error('[Lumino] LUMINO_INIT_ERROR:', message);
+      emitLuminoError('LUMINO_INIT_ERROR', message, error);
+      return null;
+    }
+  },
+};
+
+if (typeof window !== 'undefined') {
+  window.LuminoBootstrap = LuminoBootstrap;
+  void LuminoBootstrap.initFromScript();
 }
 
 export default Lumino;

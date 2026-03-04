@@ -218,6 +218,27 @@ GET http://localhost:3100/api/lumino-token?role=customer
 GET http://localhost:3100/api/lumino-token?role=author
 ```
 
+### Minimal Host Integration
+
+For host apps, integration is a single script tag:
+
+```html
+<script
+  src="/lumino/sdk/v1/lumino.js"
+  data-lumino-app-id="novapay-dashboard"
+  data-lumino-token-endpoint="/api/lumino-token"
+  data-lumino-api-url="/lumino"
+  data-lumino-environment="development"
+  data-lumino-debug="true"
+></script>
+```
+
+Implemented in NovaPay layout:
+[apps/novapay/src/app/layout.tsx](apps/novapay/src/app/layout.tsx)
+
+Auto-init behavior is implemented in:
+[packages/sdk/src/index.ts](packages/sdk/src/index.ts)
+
 ## API Endpoints
 
 ### Walkthroughs
