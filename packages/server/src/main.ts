@@ -11,6 +11,7 @@ import { registerUserStateModule } from './modules/user-state';
 import { registerHealthModule } from './modules/health';
 import { registerSdkServeModule } from './modules/sdk-serve';
 import { registerSearchModule } from './modules/search';
+import { registerTransitionsModule } from './modules/transitions';
 import { errorHandler } from './common/middleware/error-handler';
 
 async function main(): Promise<void> {
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
   await registerUserStateModule(app);
   await registerHealthModule(app);
   await registerSearchModule(app, prisma);
+  await registerTransitionsModule(app);
   await registerSdkServeModule(app);
 
   // ── Health check ──────────────────────────────────────────────────

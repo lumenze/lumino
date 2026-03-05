@@ -10,8 +10,8 @@
  * 6. Provides recorder for authors
  */
 
-import type { LuminoInitConfig, WalkthroughStep } from '@lumino/shared';
-import { SHADOW_HOST_ID, SDK_VERSION, API_ROUTES } from '@lumino/shared';
+import type { LuminoInitConfig, WalkthroughStep, CrossAppTransition } from '@lumino/shared';
+import { SHADOW_HOST_ID, SDK_VERSION, API_ROUTES, TRANSITION_URL_PARAM } from '@lumino/shared';
 import { DomObserver } from './observers/dom-observer';
 import { RouteObserver } from './observers/route-observer';
 import { ApiClient } from './core/api-client';
@@ -308,11 +308,13 @@ export class Lumino {
       this.commandPalette.start();
     }
 
-    // 9. Load walkthroughs + progress, then show notifications
-    await this.loadAndNotify();
+    // 9. Check and resume cross-app transitions first
+    const resumedFromTransition = await this.checkPendingTransitions();
 
-    // 10. Check for cross-app transitions (skip if not deployed)
-    // await this.checkPendingTransitions();
+    // 10. Load walkthroughs + progress, then show notifications
+    if (!resumedFromTransition) {
+      await this.loadAndNotify();
+    }
 
     this.initialized = true;
     this.eventBus.emit(LuminoEvent.Initialized, { version: SDK_VERSION });
@@ -341,8 +343,41 @@ export class Lumino {
     }
   }
 
-  // TODO: Re-enable when cross-app transitions module is deployed
-  // private async checkPendingTransitions(): Promise<void> { ... }
+  private async checkPendingTransitions(): Promise<boolean> {
+    try {
+      let transition: CrossAppTransition | null = null;
+      const currentUrl = new URL(window.location.href);
+      const token = currentUrl.searchParams.get(TRANSITION_URL_PARAM);
+
+      if (token) {
+        transition = await this.apiClient.consumeTransition(token);
+      }
+
+      if (!transition) {
+        transition = await this.apiClient.getPendingTransition(this.config.appId);
+      }
+
+      if (!transition) {
+        return false;
+      }
+
+      await this.stateManager.loadWalkthroughById(transition.walkthroughId);
+      await this.stateManager.loadProgress();
+
+      this.notifications.pause();
+      await this.player.resumeFromTransition(transition);
+
+      if (token) {
+        currentUrl.searchParams.delete(TRANSITION_URL_PARAM);
+        window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+      }
+
+      return true;
+    } catch (err) {
+      this.logger.warn('Failed to resume transition', err);
+      return false;
+    }
+  }
 
   // ── Author FAB ──────────────────────────────────────────────────
 

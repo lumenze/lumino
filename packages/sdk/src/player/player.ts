@@ -1,4 +1,5 @@
 import type { WalkthroughStep, CrossAppTransition, ActionType } from '@lumino/shared';
+import { TRANSITION_URL_PARAM } from '@lumino/shared';
 import type { ShadowDomManager } from '../core/shadow-dom';
 import type { ApiClient } from '../core/api-client';
 import type { StateManager } from '../core/state-manager';
@@ -261,6 +262,51 @@ export class WalkthroughPlayer {
       // Auto-advance after short delay — scroll steps are informational
       const timer = setTimeout(() => this.advanceToNextStep(), 2500);
       this.cleanupListeners.push(() => clearTimeout(timer));
+
+    } else if (actionType === 'cross_app_transition') {
+      const handler = () => {
+        targetEl.removeEventListener('click', handler);
+        void this.initiateCrossAppTransition(step);
+      };
+      targetEl.addEventListener('click', handler);
+      this.cleanupListeners.push(() => targetEl.removeEventListener('click', handler));
+    }
+  }
+
+  private async initiateCrossAppTransition(step: WalkthroughStep): Promise<void> {
+    const active = this.deps.stateManager.getActive();
+    if (!active) return;
+    const cfg = step.transitionConfig;
+    if (!cfg) {
+      console.warn('[Lumino Player] Missing transitionConfig for cross_app_transition step');
+      return;
+    }
+
+    try {
+      const result = await this.deps.apiClient.createTransition({
+        walkthroughId: active.walkthroughId,
+        walkthroughVersion: active.version,
+        fromApp: cfg.sourceAppId,
+        toApp: cfg.targetAppId,
+        currentStep: active.stepIndex,
+        nextStep: active.stepIndex + 1,
+        ttlSeconds: cfg.ttlSeconds ?? 300,
+        targetUrl: cfg.targetUrlPattern,
+        urlParamKey: cfg.urlParamKey || TRANSITION_URL_PARAM,
+      });
+
+      await this.deps.stateManager.syncProgress({
+        walkthroughId: active.walkthroughId,
+        version: active.version,
+        stepId: step.id,
+        stepOrder: active.stepIndex,
+        completed: false,
+      });
+
+      this.deps.eventBus.emit(LuminoEvent.TransitionInitiated, result.transition);
+      window.location.href = result.redirectUrl;
+    } catch (error) {
+      console.error('[Lumino Player] Failed to initiate cross-app transition', error);
     }
   }
 

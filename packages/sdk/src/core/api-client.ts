@@ -50,8 +50,33 @@ export class ApiClient {
   async getPendingTransition(appId: string): Promise<CrossAppTransition | null> {
     try {
       return await this.get<CrossAppTransition>(
-        `${API_ROUTES.TRANSITIONS}/pending?app_id=${appId}`
+        `${API_ROUTES.TRANSITIONS}/pending?appId=${encodeURIComponent(appId)}`
       );
+    } catch {
+      return null;
+    }
+  }
+
+  async createTransition(params: {
+    walkthroughId: string;
+    walkthroughVersion: number;
+    fromApp: string;
+    toApp: string;
+    currentStep: number;
+    nextStep: number;
+    ttlSeconds: number;
+    targetUrl: string;
+    urlParamKey: string;
+  }): Promise<{ token: string; redirectUrl: string; transition: CrossAppTransition }> {
+    return this.post<{ token: string; redirectUrl: string; transition: CrossAppTransition }>(
+      API_ROUTES.TRANSITIONS,
+      params,
+    );
+  }
+
+  async consumeTransition(token: string): Promise<CrossAppTransition | null> {
+    try {
+      return await this.post<CrossAppTransition>(`${API_ROUTES.TRANSITIONS}/consume`, { token });
     } catch {
       return null;
     }

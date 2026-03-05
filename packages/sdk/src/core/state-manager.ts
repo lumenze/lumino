@@ -39,6 +39,19 @@ export class StateManager {
     }
   }
 
+  async loadWalkthroughById(walkthroughId: string): Promise<void> {
+    const wt = await this.api.get<{ id: string; currentVersion: number; versions: WalkthroughVersion[] }>(
+      `${API_ROUTES.WALKTHROUGHS}/${walkthroughId}`,
+    );
+    const latestVersion = wt.versions[0];
+    if (!latestVersion) return;
+
+    this.walkthroughs.set(wt.id, {
+      definition: latestVersion.definition as unknown as WalkthroughDefinition,
+      version: latestVersion.version,
+    });
+  }
+
   getWalkthrough(id: string) {
     return this.walkthroughs.get(id) ?? null;
   }
