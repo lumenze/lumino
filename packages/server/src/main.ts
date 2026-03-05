@@ -10,6 +10,7 @@ import { registerAnalyticsModule } from './modules/analytics';
 import { registerUserStateModule } from './modules/user-state';
 import { registerHealthModule } from './modules/health';
 import { registerSdkServeModule } from './modules/sdk-serve';
+import { registerSearchModule } from './modules/search';
 import { errorHandler } from './common/middleware/error-handler';
 
 async function main(): Promise<void> {
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   await registerAnalyticsModule(app);
   await registerUserStateModule(app);
   await registerHealthModule(app);
+  await registerSearchModule(app, prisma);
   await registerSdkServeModule(app);
 
   // ── Health check ──────────────────────────────────────────────────

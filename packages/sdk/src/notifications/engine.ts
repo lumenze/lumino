@@ -112,8 +112,10 @@ export class NotificationEngine {
     const metaText = stepCount > 0 ? `${stepCount} step${stepCount !== 1 ? 's' : ''} · ~${estMinutes} min` : '';
 
     el.innerHTML = `
-      <div class="lm-notif-badge">✦ Lumino Guide</div>
-      <h4 class="lm-notif-title">${this.esc(definition.title)}</h4>
+      <div class="lm-notif-header">
+        <div class="lm-notif-badge">✦ Lumino Guide</div>
+        <h4 class="lm-notif-title">${this.esc(definition.title)}</h4>
+      </div>
       <p class="lm-notif-desc">${this.esc(definition.description)}</p>
       ${metaText ? `<div class="lm-notif-meta">${metaText}</div>` : ''}
       <div class="lm-notif-actions">
@@ -138,6 +140,9 @@ export class NotificationEngine {
     dismiss.addEventListener('click', () => {
       this.dismiss(walkthroughId, el);
     });
+
+    const header = el.querySelector('.lm-notif-header') as HTMLElement | null;
+    this.makeDraggable(el, header ?? el);
 
     this.containerEl.appendChild(el);
 
@@ -176,6 +181,46 @@ export class NotificationEngine {
     d.textContent = str;
     return d.innerHTML;
   }
+
+  private makeDraggable(target: HTMLElement, handle: HTMLElement): void {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
+      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
+      target.style.left = `${left}px`;
+      target.style.top = `${top}px`;
+      target.style.right = 'auto';
+    };
+
+    const onPointerUp = () => {
+      dragging = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      const rect = target.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      target.style.left = `${rect.left}px`;
+      target.style.top = `${rect.top}px`;
+      target.style.right = 'auto';
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+  }
 }
 
 const NOTIFICATION_CSS = `
@@ -204,6 +249,7 @@ const NOTIFICATION_CSS = `
   .lm-notif-title {
     font-size: 15px; font-weight: 700; margin: 10px 0 6px; color: #1F2937;
   }
+  .lm-notif-header { cursor: move; user-select: none; }
   .lm-notif-desc {
     font-size: 12px; color: #6B7280; line-height: 1.6; margin-bottom: 8px;
   }

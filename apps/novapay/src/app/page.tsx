@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 
 export default function Dashboard() {
@@ -69,6 +70,8 @@ export default function Dashboard() {
             <StatCard label="Rewards Points" value="42,180" change="+3,200 earned" up color="#8B5CF6" />
           </div>
 
+          <HostChatbotDemo />
+
           {/* Activity */}
           <h2 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Recent Activity</h2>
           <div style={{ background: '#FFF', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
@@ -80,6 +83,123 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+type HostSearchItem = {
+  walkthroughId: string;
+  title: string;
+  description: string;
+  confidence: number;
+  reason: string;
+};
+
+function HostChatbotDemo() {
+  const [query, setQuery] = useState('how do I change purchase limits');
+  const [results, setResults] = useState<HostSearchItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function runSearch() {
+    setLoading(true);
+    setError('');
+    try {
+      const lumino = (window as unknown as {
+        Lumino?: {
+          searchWalkthroughs?: (q: string) => Promise<{ items: HostSearchItem[] }>;
+        };
+      }).Lumino;
+
+      if (!lumino?.searchWalkthroughs) {
+        throw new Error('Lumino SDK not initialized yet');
+      }
+
+      const data = await lumino.searchWalkthroughs(query);
+      setResults(data.items ?? []);
+    } catch (err) {
+      setResults([]);
+      setError(err instanceof Error ? err.message : 'Search failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startFromHostResult(walkthroughId: string) {
+    const lumino = (window as unknown as {
+      Lumino?: { startWalkthrough?: (id: string) => void };
+    }).Lumino;
+    lumino?.startWalkthrough?.(walkthroughId);
+  }
+
+  return (
+    <div style={{
+      background: '#F8FBFF',
+      border: '1px solid #D6E8FF',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 24,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+        Host Chatbot Integration Demo
+      </div>
+      <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>
+        This simulates a host-owned chatbot calling <code>window.Lumino.searchWalkthroughs()</code>.
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{
+            flex: 1,
+            border: '1px solid #BFDBFE',
+            background: '#FFF',
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 13,
+          }}
+        />
+        <button
+          onClick={() => { void runSearch(); }}
+          style={{
+            border: 'none',
+            borderRadius: 8,
+            background: '#2563EB',
+            color: '#FFF',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '8px 12px',
+            cursor: 'pointer',
+          }}
+        >
+          {loading ? 'Searching...' : 'Search'}
+        </button>
+      </div>
+      {error && <div style={{ fontSize: 12, color: '#B91C1C', marginBottom: 8 }}>{error}</div>}
+      {results.length > 0 && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {results.map((result) => (
+            <button
+              key={result.walkthroughId}
+              onClick={() => startFromHostResult(result.walkthroughId)}
+              style={{
+                border: '1px solid #DBEAFE',
+                borderRadius: 10,
+                background: '#FFF',
+                padding: 10,
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{result.title}</div>
+              <div style={{ fontSize: 12, color: '#6B7280', margin: '2px 0 4px' }}>{result.description}</div>
+              <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                Confidence {(result.confidence * 100).toFixed(0)}% · {result.reason}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

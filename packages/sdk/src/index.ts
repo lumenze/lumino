@@ -23,6 +23,7 @@ import { WalkthroughRecorder } from './recorder/recorder';
 import { NotificationEngine } from './notifications/engine';
 import { EventBus, LuminoEvent } from './core/event-bus';
 import { Logger } from './utils/logger';
+import { CommandPalette } from './search/command-palette';
 
 type LuminoScriptConfig = {
   appId: string;
@@ -147,6 +148,7 @@ export class Lumino {
   private player!: WalkthroughPlayer;
   private recorder: WalkthroughRecorder | null = null;
   private notifications!: NotificationEngine;
+  private commandPalette: CommandPalette | null = null;
 
   private constructor() {}
 
@@ -185,6 +187,33 @@ export class Lumino {
 
   static getInstance(): Lumino | null {
     return Lumino.instance;
+  }
+
+  static async searchWalkthroughs(query: string) {
+    const sdk = await Lumino.waitUntilReady();
+    if (!sdk) {
+      throw new Error('Lumino SDK not initialized yet');
+    }
+    return sdk.searchWalkthroughs(query);
+  }
+
+  static startWalkthrough(walkthroughId: string): void {
+    const sdk = Lumino.instance;
+    if (!sdk?.initialized) {
+      throw new Error('Lumino SDK not initialized yet');
+    }
+    sdk.startWalkthrough(walkthroughId);
+  }
+
+  private static async waitUntilReady(timeoutMs = 8000): Promise<Lumino | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (Lumino.instance?.initialized) {
+        return Lumino.instance;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return null;
   }
 
   // ── Bootstrap ─────────────────────────────────────────────────────
@@ -262,6 +291,23 @@ export class Lumino {
       this.createAuthorFab();
     }
 
+    // 8.5 NL search/chat widget (default ON)
+    if (features.nlSearch !== false) {
+      this.commandPalette = new CommandPalette({
+        shadowDom: this.shadowDom,
+        apiClient: this.apiClient,
+        eventBus: this.eventBus,
+      });
+      this.commandPalette.setOnSelectWalkthrough((walkthroughId) => {
+        this.notifications.pause();
+        this.player.startWalkthrough(walkthroughId).catch((err) => {
+          this.notifications.resume();
+          this.logger.error('Failed to start walkthrough from search', err);
+        });
+      });
+      this.commandPalette.start();
+    }
+
     // 9. Load walkthroughs + progress, then show notifications
     await this.loadAndNotify();
 
@@ -308,6 +354,7 @@ export class Lumino {
     fab.className = 'lm-author-fab';
     fab.innerHTML = '&#9679; Record Guide';
     container.appendChild(fab);
+    this.makeDraggable(fab, fab, { preserveTransform: false });
 
     let capturedSteps: WalkthroughStep[] = [];
 
@@ -346,6 +393,7 @@ export class Lumino {
     `;
     container.appendChild(dialog);
     requestAnimationFrame(() => dialog.classList.add('lm-save-visible'));
+    this.makeDraggable(dialog, dialog, { preserveTransform: false });
 
     const submit = dialog.querySelector('#lm-save-submit') as HTMLElement;
     const cancel = dialog.querySelector('#lm-save-cancel') as HTMLElement;
@@ -399,6 +447,7 @@ export class Lumino {
   private teardown(): void {
     this.player?.stop();
     this.notifications?.stop();
+    this.commandPalette?.close();
     this.domObserver?.stop();
     this.routeObserver?.stop();
     this.shadowDom?.destroy();
@@ -436,6 +485,20 @@ export class Lumino {
     return this.recorder?.stopRecording() ?? [];
   }
 
+  /** Search walkthroughs by natural language (host chatbot integration) */
+  async searchWalkthroughs(query: string) {
+    return this.apiClient.post<{ items: Array<{
+      walkthroughId: string;
+      title: string;
+      description: string;
+      confidence: number;
+      reason: string;
+    }>; query: string; total: number }>(`${API_ROUTES.NL_SEARCH}/nl`, {
+      query,
+      limit: 5,
+    });
+  }
+
   /** Save a recorded walkthrough to the server */
   async saveRecording(title: string, description: string) {
     if (!this.recorder) throw new Error('Recording not available');
@@ -451,6 +514,58 @@ export class Lumino {
   off(event: string, handler: (...args: unknown[]) => void): void {
     this.eventBus.off(event, handler);
   }
+
+  private makeDraggable(
+    target: HTMLElement,
+    handle: HTMLElement,
+    options: { preserveTransform: boolean },
+  ): void {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
+      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
+      target.style.left = `${left}px`;
+      target.style.top = `${top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (!options.preserveTransform) {
+        target.style.transform = 'none';
+      }
+    };
+
+    const onPointerUp = () => {
+      dragging = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      const rect = target.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      target.style.left = `${rect.left}px`;
+      target.style.top = `${rect.top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (!options.preserveTransform) {
+        target.style.transform = 'none';
+      }
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
+  }
 }
 
 // ── Author FAB CSS ──────────────────────────────────────────────────────
@@ -465,6 +580,7 @@ const AUTHOR_FAB_CSS = `
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     animation: lm-fab-glow 3s ease-in-out infinite;
     transition: all 0.2s; pointer-events: auto;
+    cursor: move;
   }
   @keyframes lm-fab-glow {
     0%,100% { box-shadow: 0 8px 30px rgba(224,122,47,0.35); }
@@ -484,6 +600,7 @@ const AUTHOR_FAB_CSS = `
     pointer-events: auto;
     opacity: 0; transform: translateY(10px);
     transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+    cursor: move;
   }
   .lm-save-visible { opacity: 1; transform: translateY(0); }
   .lm-save-input {

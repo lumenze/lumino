@@ -272,14 +272,15 @@ export class WalkthroughRecorder {
   private attachListeners(): void {
     this.boundClickHandler = (e: MouseEvent) => {
       if (!this.recording) return;
-      const target = e.target as HTMLElement;
+      const rawTarget = e.target as HTMLElement;
 
       // Ignore clicks on our own UI (inside shadow DOM)
-      if (target.closest('[data-lumino]') || target.closest('#lumino-root')) return;
+      if (rawTarget.closest('[data-lumino]') || rawTarget.closest('#lumino-root')) return;
 
       e.preventDefault();
       e.stopPropagation();
 
+      const target = this.resolveCaptureTarget(rawTarget);
       const actionType = this.inferActionType(target);
       this.captureStep(target, actionType);
     };
@@ -322,6 +323,11 @@ export class WalkthroughRecorder {
 
   private inferActionType(el: HTMLElement): ActionType {
     const tag = el.tagName.toLowerCase();
+    const role = (el.getAttribute('role') ?? '').toLowerCase();
+    const inputType = ((el as HTMLInputElement).type ?? '').toLowerCase();
+    if (role === 'radio' || role === 'checkbox' || role === 'switch' || inputType === 'radio' || inputType === 'checkbox') {
+      return ActionType.Select;
+    }
     if (tag === 'input' || tag === 'textarea') return ActionType.Input;
     if (tag === 'select') return ActionType.Select;
     if (tag === 'a' && el.getAttribute('href')) return ActionType.Navigate;
@@ -344,6 +350,7 @@ export class WalkthroughRecorder {
       <button class="lm-rec-stop" id="lm-rec-stop">■ Stop <kbd class="lm-kbd">Esc</kbd></button>
     `;
     root.appendChild(this.toolbarEl);
+    this.makeDraggable(this.toolbarEl, this.toolbarEl);
 
     // Hover highlight
     this.highlightEl = document.createElement('div');
@@ -354,6 +361,7 @@ export class WalkthroughRecorder {
     this.stepListEl = document.createElement('div');
     this.stepListEl.className = 'lm-rec-steps';
     root.appendChild(this.stepListEl);
+    this.makeDraggable(this.stepListEl, this.stepListEl);
 
     // Wire toolbar buttons
     const stopBtn = this.toolbarEl.querySelector('#lm-rec-stop');
@@ -450,15 +458,67 @@ export class WalkthroughRecorder {
   private generateStepDescription(el: HTMLElement, actionType: ActionType): string {
     const text = (el.textContent ?? '').trim().slice(0, 50);
     const tag = el.tagName.toLowerCase();
-    const label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || text;
+    const label = this.getElementLabel(el) || text;
+    const role = (el.getAttribute('role') ?? '').toLowerCase();
+    const inputType = ((el as HTMLInputElement).type ?? '').toLowerCase();
 
     switch (actionType) {
-      case 'click': return label ? `Click on "${label}"` : `Click the ${tag} element`;
+      case 'click': return label ? `Click on "${label}"` : `Click this element`;
       case 'input': return label ? `Enter a value in "${label}"` : `Type in the ${tag} field`;
-      case 'select': return label ? `Choose an option from "${label}"` : `Select from the dropdown`;
+      case 'select':
+        if (role === 'radio' || inputType === 'radio') {
+          return label ? `Select "${label}"` : 'Select this option';
+        }
+        if (role === 'checkbox' || inputType === 'checkbox' || role === 'switch') {
+          return label ? `Toggle "${label}"` : 'Toggle this setting';
+        }
+        return label ? `Choose an option from "${label}"` : 'Select from the dropdown';
       case 'navigate': return label ? `Navigate to "${label}"` : `Click the link`;
       default: return `Interact with the ${tag} element`;
     }
+  }
+
+  private resolveCaptureTarget(el: HTMLElement): HTMLElement {
+    const interactive = el.closest(
+      'input, textarea, select, button, a, label, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="option"]',
+    ) as HTMLElement | null;
+    return interactive ?? el;
+  }
+
+  private getElementLabel(el: HTMLElement): string {
+    const direct = (
+      el.getAttribute('aria-label')
+      || el.getAttribute('placeholder')
+      || el.getAttribute('title')
+      || ''
+    ).trim();
+    if (direct) return direct;
+
+    const ariaLabelledBy = el.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+      const text = ariaLabelledBy
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      if (text) return text;
+    }
+
+    const parentLabel = el.closest('label');
+    const parentLabelText = parentLabel?.textContent?.trim() ?? '';
+    if (parentLabelText) return parentLabelText;
+
+    if (el.id) {
+      const linkedLabel = document.querySelector(`label[for="${CSS.escape(el.id)}"]`) as HTMLElement | null;
+      const linkedText = linkedLabel?.textContent?.trim() ?? '';
+      if (linkedText) return linkedText;
+    }
+
+    const nearestRowText = el.closest('[data-testid], [role="group"], fieldset, li, tr')?.textContent?.trim() ?? '';
+    if (nearestRowText) return nearestRowText.slice(0, 80);
+
+    return '';
   }
 
   private calculateTooltipPosition(rect: DOMRect): string {
@@ -472,6 +532,54 @@ export class WalkthroughRecorder {
     if (cx > vw * 0.4) return 'left';
     if (cy < vh * 0.5) return 'bottom';
     return 'top';
+  }
+
+  private makeDraggable(target: HTMLElement, handle: HTMLElement): void {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
+      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
+      target.style.left = `${left}px`;
+      target.style.top = `${top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (target.classList.contains('lm-rec-toolbar')) {
+        target.style.transform = 'none';
+      }
+    };
+
+    const onPointerUp = () => {
+      dragging = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      const rect = target.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      target.style.left = `${rect.left}px`;
+      target.style.top = `${rect.top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (target.classList.contains('lm-rec-toolbar')) {
+        target.style.transform = 'none';
+      }
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    });
   }
 }
 
@@ -488,6 +596,7 @@ const RECORDER_CSS = `
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 13px;
   }
+  .lm-rec-toolbar { cursor: move; user-select: none; }
   .lm-rec-indicator { display: flex; align-items: center; gap: 8px; font-weight: 700; }
   .lm-rec-dot {
     width: 8px; height: 8px; border-radius: 50%; background: #EF4444;
@@ -536,6 +645,7 @@ const RECORDER_CSS = `
     border: 1px solid rgba(255,255,255,0.06);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   }
+  .lm-rec-steps { cursor: move; user-select: none; }
   .lm-rec-steps::-webkit-scrollbar { width: 4px; }
   .lm-rec-steps::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
