@@ -31,6 +31,7 @@ export class WalkthroughPlayer {
   private completionEl: HTMLElement | null = null;
   private badgeEl: HTMLElement | null = null;
   private boundEscHandler: ((e: KeyboardEvent) => void) | null = null;
+  private tooltipDragged = false;
 
   // Current step tracking
   private currentTargetEl: Element | null = null;
@@ -331,6 +332,7 @@ export class WalkthroughPlayer {
 
   private renderTooltip(step: WalkthroughStep, targetEl: Element, index: number, total: number): void {
     if (!this.tooltipEl) return;
+    this.tooltipDragged = false;
 
     const actionHints: Record<string, string> = {
       click: '👆 Click to continue',
@@ -371,7 +373,7 @@ export class WalkthroughPlayer {
     }
 
     // Position tooltip relative to target
-    this.positionTooltip(targetEl, step.tooltipPosition);
+    this.positionTooltip(targetEl, step.tooltipPosition, step.actionType);
     this.tooltipEl.style.display = 'block';
 
     // Animate in
@@ -383,6 +385,9 @@ export class WalkthroughPlayer {
         this.tooltipEl.style.opacity = '1';
         this.tooltipEl.style.transform = 'scale(1) translateY(0)';
       }
+    });
+    this.makeDraggable(this.tooltipEl, this.tooltipEl, () => {
+      this.tooltipDragged = true;
     });
   }
 
@@ -407,40 +412,83 @@ export class WalkthroughPlayer {
     return `<div style="display:flex;align-items:center;margin-bottom:14px;gap:0">${items.join('')}</div>`;
   }
 
-  private positionTooltip(targetEl: Element, position: string): void {
+  private positionTooltip(targetEl: Element, position: string, actionType?: string): void {
     if (!this.tooltipEl) return;
+    if (this.tooltipDragged) return;
     const rect = targetEl.getBoundingClientRect();
     const tw = 300;
     const th = this.tooltipEl.offsetHeight || 200;
     let left: number, top: number;
+    const viewportPad = 16;
+    const gap = 16;
 
-    switch (position) {
+    const fitsRight = rect.right + gap + tw <= window.innerWidth - viewportPad;
+    const fitsLeft = rect.left - gap - tw >= viewportPad;
+    const fitsTop = rect.top - gap - th >= viewportPad;
+    const fitsBottom = rect.bottom + gap + th <= window.innerHeight - viewportPad;
+
+    const rightSpace = window.innerWidth - rect.right;
+    const leftSpace = rect.left;
+    const topSpace = rect.top;
+    const bottomSpace = window.innerHeight - rect.bottom;
+
+    let resolved = position;
+    if ((actionType === 'input' || actionType === 'select') && (position === 'right' || position === 'left')) {
+      // For editable controls, treat static horizontal hints as adaptive.
+      resolved = 'auto';
+    }
+    if (position === 'auto') {
+      // Generic UX rule: editable controls should avoid covering typing flow.
+      const preferLeftFirst = actionType === 'input' || actionType === 'select';
+      if (preferLeftFirst) {
+        if (fitsLeft) resolved = 'left';
+        else if (fitsRight) resolved = 'right';
+        else if (fitsTop) resolved = 'top';
+        else resolved = 'bottom';
+      } else {
+        // Choose side with strongest available space, then apply fit fallback.
+        const horizontalBetter = Math.max(leftSpace, rightSpace) >= Math.max(topSpace, bottomSpace);
+        if (horizontalBetter) {
+          if (rightSpace >= leftSpace && fitsRight) resolved = 'right';
+          else if (fitsLeft) resolved = 'left';
+          else if (fitsBottom) resolved = 'bottom';
+          else resolved = 'top';
+        } else {
+          if (bottomSpace >= topSpace && fitsBottom) resolved = 'bottom';
+          else if (fitsTop) resolved = 'top';
+          else if (fitsRight) resolved = 'right';
+          else resolved = 'left';
+        }
+      }
+    }
+
+    switch (resolved) {
       case 'right':
-        left = rect.right + 16;
+        left = rect.right + gap;
         top = rect.top;
         if (left + tw > window.innerWidth - 20) {
-          left = rect.left - tw - 16;
+          left = rect.left - tw - gap;
         }
         break;
       case 'left':
-        left = rect.left - tw - 16;
+        left = rect.left - tw - gap;
         top = rect.top;
-        if (left < 20) left = rect.right + 16;
+        if (left < 20) left = rect.right + gap;
         break;
       case 'top':
         left = rect.left;
-        top = rect.top - th - 16;
-        if (top < 20) top = rect.bottom + 16;
+        top = rect.top - th - gap;
+        if (top < 20) top = rect.bottom + gap;
         break;
       case 'bottom':
         left = rect.left;
-        top = rect.bottom + 16;
+        top = rect.bottom + gap;
         break;
       default: // auto
-        left = rect.right + 16;
+        left = rect.right + gap;
         top = rect.top;
-        if (left + tw > window.innerWidth - 20) left = rect.left - tw - 16;
-        if (left < 20) { left = rect.left; top = rect.bottom + 16; }
+        if (left + tw > window.innerWidth - 20) left = rect.left - tw - gap;
+        if (left < 20) { left = rect.left; top = rect.bottom + gap; }
         break;
     }
 
@@ -519,6 +567,9 @@ export class WalkthroughPlayer {
       if (doneBtn) {
         doneBtn.addEventListener('click', () => this.stop());
       }
+      this.makeDraggable(this.completionEl, this.completionEl, () => {
+        // no-op callback
+      });
     }
 
     this.deps.eventBus.emit(LuminoEvent.WalkthroughCompleted, {
@@ -580,7 +631,7 @@ export class WalkthroughPlayer {
       if (this.tooltipEl && this.tooltipEl.style.display !== 'none') {
         const active = this.deps.stateManager.getActive();
         if (active?.step) {
-          this.positionTooltip(targetEl, active.step.tooltipPosition);
+          this.positionTooltip(targetEl, active.step.tooltipPosition, active.step.actionType);
         }
       }
       this.repositionRaf = requestAnimationFrame(reposition);
@@ -640,8 +691,9 @@ export class WalkthroughPlayer {
     this.badgeEl = null;
     if (this.boundEscHandler) {
       document.removeEventListener('keydown', this.boundEscHandler);
-      this.boundEscHandler = null;
-    }
+    this.boundEscHandler = null;
+    this.tooltipDragged = false;
+  }
   }
 
   private showOverlay(): void {
@@ -662,10 +714,69 @@ export class WalkthroughPlayer {
     if (this.tooltipEl) {
       this.tooltipEl.style.display = 'none';
       this.tooltipEl.innerHTML = '';
+      this.tooltipEl.style.left = '';
+      this.tooltipEl.style.top = '';
     }
     if (this.completionEl) {
       this.completionEl.style.display = 'none';
+      this.completionEl.style.left = '';
+      this.completionEl.style.top = '';
+      this.completionEl.style.transform = '';
     }
+    this.tooltipDragged = false;
+  }
+
+  private makeDraggable(
+    target: HTMLElement,
+    handle: HTMLElement,
+    onDragged: () => void,
+  ): void {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
+      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
+      target.style.left = `${left}px`;
+      target.style.top = `${top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (target === this.completionEl) {
+        target.style.transform = 'none';
+      }
+      onDragged();
+    };
+
+    const onPointerUp = () => {
+      dragging = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    handle.onpointerdown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      const rect = target.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      target.style.left = `${rect.left}px`;
+      target.style.top = `${rect.top}px`;
+      target.style.right = 'auto';
+      target.style.bottom = 'auto';
+      if (target === this.completionEl) {
+        target.style.transform = 'none';
+      }
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    };
   }
 
   private escapeHtml(str: string): string {

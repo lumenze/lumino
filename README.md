@@ -239,6 +239,25 @@ Implemented in NovaPay layout:
 Auto-init behavior is implemented in:
 [packages/sdk/src/index.ts](packages/sdk/src/index.ts)
 
+### NLU / Chatbot MVP Modes
+
+Lumino now supports both integration patterns:
+
+1. Host has no chatbot
+- SDK renders embedded **Ask Lumino** launcher/panel.
+- User query is resolved via `POST /api/v1/search/nl`.
+- Selecting a result starts the walkthrough directly.
+
+2. Host already has chatbot/LLM
+- Host bot calls `window.Lumino.searchWalkthroughs(query)`.
+- Host UI renders suggested guides.
+- Host starts guide with `window.Lumino.startWalkthrough(walkthroughId)`.
+
+NovaPay demo includes both:
+- Embedded SDK chat (no host chatbot mode)
+- Host chatbot simulation panel in
+[apps/novapay/src/app/page.tsx](apps/novapay/src/app/page.tsx)
+
 ## API Endpoints
 
 ### Walkthroughs
