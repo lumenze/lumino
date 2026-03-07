@@ -1,0 +1,57 @@
+# Lumino — Production Stack
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# Runs: Lumino Server + PostgreSQL + Redis
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lumino-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lumino}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lumino}
+      POSTGRES_DB: ${POSTGRES_DB:-lumino}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lumino}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lumino-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.server
+    container_name: lumino-server
+    restart: unless-stopped
+    ports:
+      - "${LUMINO_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lumino}:${POSTGRES_PASSWORD:-lumino}@postgres:5432/${POSTGRES_DB:-lumino}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

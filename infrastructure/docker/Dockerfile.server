@@ -6,15 +6,18 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/server/package.json packages/server/
+COPY packages/sdk/package.json packages/sdk/
 RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
 # Copy source
 COPY tsconfig.json ./
 COPY packages/shared/ packages/shared/
 COPY packages/server/ packages/server/
+COPY packages/sdk/ packages/sdk/
 
-# Build shared first, then server
+# Build shared → SDK → server (SDK bundle served by server at /sdk/v1/lumino.js)
 RUN pnpm --filter @lumino/shared build
+RUN pnpm --filter @lumino/sdk build
 RUN cd packages/server && npx prisma generate
 RUN pnpm --filter @lumino/server build
 
