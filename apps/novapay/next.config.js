@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
+  output: 'standalone',
   // Proxy Lumino API requests to the Lumino server
   async rewrites() {
     return [

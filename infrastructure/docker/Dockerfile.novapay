@@ -12,12 +12,12 @@ COPY apps/novapay/ apps/novapay/
 ENV LUMINO_SERVER_URL=http://server:3000
 RUN pnpm --filter @lumino/novapay build
 
-# Run
+# Run — standalone output bundles everything needed
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=base /app/apps/novapay/.next ./apps/novapay/.next
-COPY --from=base /app/apps/novapay/package.json ./apps/novapay/
-COPY --from=base /app/apps/novapay/next.config.js ./apps/novapay/
-COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/apps/novapay/.next/standalone ./
+COPY --from=base /app/apps/novapay/.next/static ./apps/novapay/.next/static
 EXPOSE 3100
-CMD ["node_modules/.bin/next", "start", "-p", "3100", "apps/novapay"]
+ENV PORT=3100
+ENV HOSTNAME=0.0.0.0
+CMD ["node", "apps/novapay/server.js"]
