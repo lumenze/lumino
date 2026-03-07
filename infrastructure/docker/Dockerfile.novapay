@@ -1,9 +1,23 @@
-FROM node:20-alpine
+FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
-COPY apps/novapay/package.json .
-RUN pnpm install
-COPY apps/novapay/ .
-RUN pnpm build
-EXPOSE 3000
-CMD ["pnpm", "start"]
+
+# Install dependencies
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+COPY apps/novapay/package.json apps/novapay/
+RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+
+# Copy source and build
+COPY apps/novapay/ apps/novapay/
+ENV LUMINO_SERVER_URL=http://server:3000
+RUN pnpm --filter @lumino/novapay build
+
+# Run
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=base /app/apps/novapay/.next ./apps/novapay/.next
+COPY --from=base /app/apps/novapay/package.json ./apps/novapay/
+COPY --from=base /app/apps/novapay/next.config.js ./apps/novapay/
+COPY --from=base /app/node_modules ./node_modules
+EXPOSE 3100
+CMD ["node_modules/.bin/next", "start", "-p", "3100", "apps/novapay"]

@@ -6,7 +6,7 @@ const nextConfig = {
     return [
       {
         source: '/lumino/:path*',
-        destination: 'http://127.0.0.1:3000/:path*',
+        destination: `${process.env.LUMINO_SERVER_URL || 'http://127.0.0.1:3000'}/:path*`,
       },
     ];
   },

@@ -1,6 +1,6 @@
 # Lumino — Production Stack
-# Usage: docker compose -f docker-compose.prod.yml up -d
-# Runs: Lumino Server + PostgreSQL + Redis
+# Usage: docker compose -f docker-compose.prod.yml --env-file ../../.env up -d
+# Runs: Lumino Server + NovaPay Demo + PostgreSQL + Redis
 
 services:
   postgres:
@@ -51,6 +51,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  novapay:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.novapay
+    container_name: lumino-novapay
+    restart: unless-stopped
+    ports:
+      - "${NOVAPAY_PORT:-3100}:3100"
+    environment:
+      NODE_ENV: production
+      LUMINO_SERVER_URL: http://server:3000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    depends_on:
+      - server
 
 volumes:
   postgres_data:
