@@ -4,6 +4,8 @@ import type { ShadowDomManager } from '../core/shadow-dom';
 import type { ApiClient } from '../core/api-client';
 import { EventBus, LuminoEvent } from '../core/event-bus';
 import { API_ROUTES } from '@lumino/shared';
+import { makeDraggable } from '../utils/draggable';
+import { escapeHtml } from '../utils/escape-html';
 
 interface RecorderDeps {
   shadowDom: ShadowDomManager;
@@ -277,9 +279,8 @@ export class WalkthroughRecorder {
       // Ignore clicks on our own UI (inside shadow DOM)
       if (rawTarget.closest('[data-lumino]') || rawTarget.closest('#lumino-root')) return;
 
-      e.preventDefault();
-      e.stopPropagation();
-
+      // Capture step metadata but let the click propagate to the app
+      // so navigation and interactions still work during recording
       const target = this.resolveCaptureTarget(rawTarget);
       const actionType = this.inferActionType(target);
       this.captureStep(target, actionType);
@@ -350,7 +351,7 @@ export class WalkthroughRecorder {
       <button class="lm-rec-stop" id="lm-rec-stop">■ Stop <kbd class="lm-kbd">Esc</kbd></button>
     `;
     root.appendChild(this.toolbarEl);
-    this.makeDraggable(this.toolbarEl, this.toolbarEl);
+    makeDraggable(this.toolbarEl, this.toolbarEl, { clearTransform: true });
 
     // Hover highlight
     this.highlightEl = document.createElement('div');
@@ -361,7 +362,7 @@ export class WalkthroughRecorder {
     this.stepListEl = document.createElement('div');
     this.stepListEl.className = 'lm-rec-steps';
     root.appendChild(this.stepListEl);
-    this.makeDraggable(this.stepListEl, this.stepListEl);
+    makeDraggable(this.stepListEl, this.stepListEl);
 
     // Wire toolbar buttons
     const stopBtn = this.toolbarEl.querySelector('#lm-rec-stop');
@@ -405,9 +406,8 @@ export class WalkthroughRecorder {
     });
   }
 
-  private flashCapture(el: HTMLElement): void {
+  private flashCapture(_el: HTMLElement): void {
     if (!this.highlightEl) return;
-    const rect = el.getBoundingClientRect();
     this.highlightEl.style.borderColor = '#10B981';
     this.highlightEl.style.background = 'rgba(16,185,129,0.08)';
     setTimeout(() => {
@@ -433,10 +433,10 @@ export class WalkthroughRecorder {
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#FFF;flex-shrink:0">${step.order + 1}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:600;color:#FFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this.escapeHtml(step.title)}</div>
+          <div style="font-size:11px;font-weight:600;color:#FFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(step.title)}</div>
           <div style="font-size:9px;color:rgba(255,255,255,0.35);margin-top:1px;display:flex;align-items:center;gap:4px">
             <span style="color:#E07A2F;font-weight:600;text-transform:uppercase">${step.actionType}</span>
-            <span>${this.escapeHtml(selectorPreview)}</span>
+            <span>${escapeHtml(selectorPreview)}</span>
           </div>
         </div>
       </div>
@@ -445,12 +445,6 @@ export class WalkthroughRecorder {
     this.stepListEl.appendChild(card);
     // Scroll to bottom
     this.stepListEl.scrollTop = this.stepListEl.scrollHeight;
-  }
-
-  private escapeHtml(str: string): string {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────
@@ -534,53 +528,6 @@ export class WalkthroughRecorder {
     return 'top';
   }
 
-  private makeDraggable(target: HTMLElement, handle: HTMLElement): void {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
-      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
-      target.style.left = `${left}px`;
-      target.style.top = `${top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (target.classList.contains('lm-rec-toolbar')) {
-        target.style.transform = 'none';
-      }
-    };
-
-    const onPointerUp = () => {
-      dragging = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      dragging = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      const rect = target.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      target.style.left = `${rect.left}px`;
-      target.style.top = `${rect.top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (target.classList.contains('lm-rec-toolbar')) {
-        target.style.transform = 'none';
-      }
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    });
-  }
 }
 
 const RECORDER_CSS = `

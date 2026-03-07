@@ -2,6 +2,8 @@ import type { ShadowDomManager } from '../core/shadow-dom';
 import type { ApiClient } from '../core/api-client';
 import { EventBus } from '../core/event-bus';
 import { API_ROUTES } from '@lumino/shared';
+import { makeDraggable } from '../utils/draggable';
+import { escapeHtml } from '../utils/escape-html';
 
 interface SearchDeps {
   shadowDom: ShadowDomManager;
@@ -61,8 +63,8 @@ export class CommandPalette {
 
     this.containerEl.appendChild(this.launcherEl);
     this.repositionForAuthorMode();
-    this.makeDraggable(this.launcherEl, this.launcherEl, {
-      setDragged: () => { this.launcherDragged = true; },
+    makeDraggable(this.launcherEl, this.launcherEl, {
+      onDragged: () => { this.launcherDragged = true; },
     });
   }
 
@@ -97,8 +99,9 @@ export class CommandPalette {
       });
 
       const header = this.panelEl.querySelector('.lm-chat-header') as HTMLElement | null;
-      this.makeDraggable(this.panelEl, header ?? this.panelEl, {
-        setDragged: () => { this.panelDragged = true; },
+      makeDraggable(this.panelEl, header ?? this.panelEl, {
+        onDragged: () => { this.panelDragged = true; },
+        filterInteractive: true,
       });
 
       const form = this.panelEl.querySelector('.lm-chat-form') as HTMLFormElement | null;
@@ -142,9 +145,9 @@ export class CommandPalette {
     resultsEl.innerHTML = items
       .map((item) => `
         <button class="lm-chat-result" data-walkthrough-id="${item.walkthroughId}">
-          <div class="lm-chat-result-title">${this.escape(item.title)}</div>
-          <div class="lm-chat-result-desc">${this.escape(item.description)}</div>
-          <div class="lm-chat-result-meta">Confidence ${(item.confidence * 100).toFixed(0)}% · ${this.escape(item.reason)}</div>
+          <div class="lm-chat-result-title">${escapeHtml(item.title)}</div>
+          <div class="lm-chat-result-desc">${escapeHtml(item.description)}</div>
+          <div class="lm-chat-result-meta">Confidence ${(item.confidence * 100).toFixed(0)}% · ${escapeHtml(item.reason)}</div>
         </button>
       `)
       .join('');
@@ -159,12 +162,6 @@ export class CommandPalette {
         this.close();
       });
     });
-  }
-
-  private escape(text: string): string {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   private repositionForAuthorMode(): void {
@@ -188,55 +185,6 @@ export class CommandPalette {
     }
   }
 
-  private makeDraggable(
-    target: HTMLElement,
-    handle: HTMLElement,
-    opts: { setDragged: () => void },
-  ): void {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
-      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
-      target.style.left = `${left}px`;
-      target.style.top = `${top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      opts.setDragged();
-    };
-
-    const onPointerUp = () => {
-      dragging = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      const targetEl = event.target as HTMLElement | null;
-      if (targetEl?.closest('button, input, textarea, select, a, [data-no-drag="true"]')) return;
-      dragging = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      const rect = target.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      target.style.left = `${rect.left}px`;
-      target.style.top = `${rect.top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      handle.setPointerCapture?.(event.pointerId);
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    });
-  }
 }
 
 const PALETTE_CSS = `

@@ -24,6 +24,7 @@ import { NotificationEngine } from './notifications/engine';
 import { EventBus, LuminoEvent } from './core/event-bus';
 import { Logger } from './utils/logger';
 import { CommandPalette } from './search/command-palette';
+import { makeDraggable } from './utils/draggable';
 
 type LuminoScriptConfig = {
   appId: string;
@@ -389,7 +390,7 @@ export class Lumino {
     fab.className = 'lm-author-fab';
     fab.innerHTML = '&#9679; Record Guide';
     container.appendChild(fab);
-    this.makeDraggable(fab, fab, { preserveTransform: false });
+    makeDraggable(fab, fab);
 
     let capturedSteps: WalkthroughStep[] = [];
 
@@ -428,7 +429,7 @@ export class Lumino {
     `;
     container.appendChild(dialog);
     requestAnimationFrame(() => dialog.classList.add('lm-save-visible'));
-    this.makeDraggable(dialog, dialog, { preserveTransform: false });
+    makeDraggable(dialog, dialog);
 
     const submit = dialog.querySelector('#lm-save-submit') as HTMLElement;
     const cancel = dialog.querySelector('#lm-save-cancel') as HTMLElement;
@@ -481,6 +482,7 @@ export class Lumino {
 
   private teardown(): void {
     this.player?.stop();
+    this.recorder?.stopRecording();
     this.notifications?.stop();
     this.commandPalette?.close();
     this.domObserver?.stop();
@@ -550,57 +552,6 @@ export class Lumino {
     this.eventBus.off(event, handler);
   }
 
-  private makeDraggable(
-    target: HTMLElement,
-    handle: HTMLElement,
-    options: { preserveTransform: boolean },
-  ): void {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
-      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
-      target.style.left = `${left}px`;
-      target.style.top = `${top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (!options.preserveTransform) {
-        target.style.transform = 'none';
-      }
-    };
-
-    const onPointerUp = () => {
-      dragging = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      dragging = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      const rect = target.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      target.style.left = `${rect.left}px`;
-      target.style.top = `${rect.top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (!options.preserveTransform) {
-        target.style.transform = 'none';
-      }
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    });
-  }
 }
 
 // ── Author FAB CSS ──────────────────────────────────────────────────────

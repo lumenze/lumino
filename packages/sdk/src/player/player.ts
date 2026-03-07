@@ -5,6 +5,9 @@ import type { ApiClient } from '../core/api-client';
 import type { StateManager } from '../core/state-manager';
 import { EventBus, LuminoEvent } from '../core/event-bus';
 import { DomObserver } from '../observers/dom-observer';
+import { makeDraggable } from '../utils/draggable';
+import { escapeHtml } from '../utils/escape-html';
+import { Logger } from '../utils/logger';
 
 interface PlayerDeps {
   shadowDom: ShadowDomManager;
@@ -23,10 +26,10 @@ interface PlayerDeps {
 export class WalkthroughPlayer {
   private deps: PlayerDeps;
   private domObserver: DomObserver;
+  private logger = new Logger('Player');
   private playing = false;
 
   // DOM elements (inside shadow DOM)
-  private overlayEl: HTMLElement | null = null;
   private spotlightEl: HTMLElement | null = null;
   private tooltipEl: HTMLElement | null = null;
   private completionEl: HTMLElement | null = null;
@@ -55,7 +58,7 @@ export class WalkthroughPlayer {
     const progress = this.deps.stateManager.getProgress(walkthroughId);
     const startIndex = progress && !progress.completed ? progress.currentStepOrder : 0;
 
-    console.log('[Lumino Player] Starting walkthrough', walkthroughId, 'at step', startIndex);
+    this.logger.debug(`Starting walkthrough ${walkthroughId} at step ${startIndex}`);
 
     this.deps.stateManager.setActive(walkthroughId, startIndex);
     this.playing = true;
@@ -110,7 +113,7 @@ export class WalkthroughPlayer {
   private showCurrentStep(): void {
     const active = this.deps.stateManager.getActive();
     if (!active || !active.step) {
-      console.log('[Lumino Player] No active step — showing completion');
+      this.logger.debug('No active step — showing completion');
       this.showCompletion();
       return;
     }
@@ -118,11 +121,11 @@ export class WalkthroughPlayer {
     this.cleanupStep();
 
     const step = active.step;
-    console.log('[Lumino Player] Showing step', active.stepIndex, step.title, 'selector:', step.selector.primary);
+    this.logger.debug(`Showing step ${active.stepIndex} "${step.title}" selector: ${step.selector.primary}`);
 
     // If the step expects a different URL, navigate there first
     if (step.expectedUrl && !window.location.pathname.startsWith(step.expectedUrl)) {
-      console.log('[Lumino Player] Navigating to', step.expectedUrl, 'for step', step.title);
+      this.logger.debug(`Navigating to ${step.expectedUrl} for step "${step.title}"`);
       this.deps.stateManager.syncProgress({
         walkthroughId: active.walkthroughId,
         version: active.version,
@@ -138,13 +141,13 @@ export class WalkthroughPlayer {
     // Find the target element
     const el = this.domObserver.findElement(step.selector);
     if (!el) {
-      console.log('[Lumino Player] Element not found for', step.selector.primary, '— waiting...');
+      this.logger.debug(`Element not found for ${step.selector.primary} — waiting...`);
       // Element not found — wait for it
       const cancel = this.domObserver.waitForElement(
         step.id,
         step.selector,
         (foundEl) => {
-          console.log('[Lumino Player] Element found after wait:', foundEl);
+          this.logger.debug('Element found after wait');
           this.renderStep(step, foundEl, active.stepIndex, active.totalSteps);
         },
         15000,
@@ -153,7 +156,7 @@ export class WalkthroughPlayer {
       return;
     }
 
-    console.log('[Lumino Player] Element found:', el);
+    this.logger.debug('Element found');
     this.renderStep(step, el, active.stepIndex, active.totalSteps);
   }
 
@@ -278,7 +281,7 @@ export class WalkthroughPlayer {
     if (!active) return;
     const cfg = step.transitionConfig;
     if (!cfg) {
-      console.warn('[Lumino Player] Missing transitionConfig for cross_app_transition step');
+      this.logger.warn('Missing transitionConfig for cross_app_transition step');
       return;
     }
 
@@ -306,7 +309,7 @@ export class WalkthroughPlayer {
       this.deps.eventBus.emit(LuminoEvent.TransitionInitiated, result.transition);
       window.location.href = result.redirectUrl;
     } catch (error) {
-      console.error('[Lumino Player] Failed to initiate cross-app transition', error);
+      this.logger.error('Failed to initiate cross-app transition', error);
     }
   }
 
@@ -397,8 +400,8 @@ export class WalkthroughPlayer {
         </span>
         <span style="font-size:11px;color:rgba(255,255,255,.4)">of ${total}</span>
       </div>
-      <h4 style="font-size:15px;font-weight:700;margin-bottom:6px">${this.escapeHtml(step.title)}</h4>
-      <p style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.6;margin-bottom:14px">${this.escapeHtml(step.description)}</p>
+      <h4 style="font-size:15px;font-weight:700;margin-bottom:6px">${escapeHtml(step.title)}</h4>
+      <p style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.6;margin-bottom:14px">${escapeHtml(step.description)}</p>
       ${this.buildProgressBar(index, total)}
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;color:rgba(255,255,255,.35);font-style:italic">
@@ -432,8 +435,8 @@ export class WalkthroughPlayer {
         this.tooltipEl.style.transform = 'scale(1) translateY(0)';
       }
     });
-    this.makeDraggable(this.tooltipEl, this.tooltipEl, () => {
-      this.tooltipDragged = true;
+    makeDraggable(this.tooltipEl, this.tooltipEl, {
+      onDragged: () => { this.tooltipDragged = true; },
     });
   }
 
@@ -583,7 +586,7 @@ export class WalkthroughPlayer {
       this.completionEl.innerHTML = `
         <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 20px;box-shadow:0 8px 30px rgba(224,122,47,.3)">✓</div>
         <h3 style="font-size:20px;font-weight:800;margin-bottom:8px">All Set!</h3>
-        <p style="font-size:13px;color:rgba(255,255,255,.55);line-height:1.6;margin-bottom:20px">${this.escapeHtml(active.definition.title)} completed successfully.</p>
+        <p style="font-size:13px;color:rgba(255,255,255,.55);line-height:1.6;margin-bottom:20px">${escapeHtml(active.definition.title)} completed successfully.</p>
         <div style="display:flex;gap:12px;justify-content:center;margin-bottom:24px">
           <div style="background:rgba(255,255,255,0.06);border-radius:12px;padding:12px 20px;text-align:center;min-width:80px">
             <div style="font-size:22px;font-weight:800;color:#E07A2F">${totalSteps}</div>
@@ -613,9 +616,7 @@ export class WalkthroughPlayer {
       if (doneBtn) {
         doneBtn.addEventListener('click', () => this.stop());
       }
-      this.makeDraggable(this.completionEl, this.completionEl, () => {
-        // no-op callback
-      });
+      makeDraggable(this.completionEl, this.completionEl, { clearTransform: true });
     }
 
     this.deps.eventBus.emit(LuminoEvent.WalkthroughCompleted, {
@@ -694,7 +695,7 @@ export class WalkthroughPlayer {
     const root = this.deps.shadowDom.getRoot();
 
     // Inject styles
-    this.deps.shadowDom.injectStyles(PLAYER_CSS);
+    this.deps.shadowDom.appendStyles(PLAYER_CSS);
 
     // Spotlight
     this.spotlightEl = document.createElement('div');
@@ -737,9 +738,9 @@ export class WalkthroughPlayer {
     this.badgeEl = null;
     if (this.boundEscHandler) {
       document.removeEventListener('keydown', this.boundEscHandler);
+    }
     this.boundEscHandler = null;
     this.tooltipDragged = false;
-  }
   }
 
   private showOverlay(): void {
@@ -772,64 +773,6 @@ export class WalkthroughPlayer {
     this.tooltipDragged = false;
   }
 
-  private makeDraggable(
-    target: HTMLElement,
-    handle: HTMLElement,
-    onDragged: () => void,
-  ): void {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
-      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
-      target.style.left = `${left}px`;
-      target.style.top = `${top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (target === this.completionEl) {
-        target.style.transform = 'none';
-      }
-      onDragged();
-    };
-
-    const onPointerUp = () => {
-      dragging = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    handle.onpointerdown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      dragging = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      const rect = target.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      target.style.left = `${rect.left}px`;
-      target.style.top = `${rect.top}px`;
-      target.style.right = 'auto';
-      target.style.bottom = 'auto';
-      if (target === this.completionEl) {
-        target.style.transform = 'none';
-      }
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-  }
-
-  private escapeHtml(str: string): string {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
 }
 
 // ── Injected CSS ────────────────────────────────────────────────────────

@@ -41,10 +41,14 @@ export class ApiClient {
   }
 
   async delete(path: string): Promise<void> {
-    await fetch(`${this.config.baseUrl}${path}`, {
+    const response = await fetch(`${this.config.baseUrl}${path}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(`[Lumino API] ${response.status}: ${error.message ?? 'Delete failed'}`);
+    }
   }
 
   async getPendingTransition(appId: string): Promise<CrossAppTransition | null> {

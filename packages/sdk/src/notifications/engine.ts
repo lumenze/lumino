@@ -2,6 +2,8 @@ import type { WalkthroughDefinition } from '@lumino/shared';
 import type { ShadowDomManager } from '../core/shadow-dom';
 import type { ApiClient } from '../core/api-client';
 import { EventBus, LuminoEvent } from '../core/event-bus';
+import { makeDraggable } from '../utils/draggable';
+import { escapeHtml } from '../utils/escape-html';
 
 interface NotificationDeps {
   shadowDom: ShadowDomManager;
@@ -114,9 +116,9 @@ export class NotificationEngine {
     el.innerHTML = `
       <div class="lm-notif-header">
         <div class="lm-notif-badge">✦ Lumino Guide</div>
-        <h4 class="lm-notif-title">${this.esc(definition.title)}</h4>
+        <h4 class="lm-notif-title">${escapeHtml(definition.title)}</h4>
       </div>
-      <p class="lm-notif-desc">${this.esc(definition.description)}</p>
+      <p class="lm-notif-desc">${escapeHtml(definition.description)}</p>
       ${metaText ? `<div class="lm-notif-meta">${metaText}</div>` : ''}
       <div class="lm-notif-actions">
         <button class="lm-notif-cta">Show Me How →</button>
@@ -142,7 +144,7 @@ export class NotificationEngine {
     });
 
     const header = el.querySelector('.lm-notif-header') as HTMLElement | null;
-    this.makeDraggable(el, header ?? el);
+    makeDraggable(el, header ?? el);
 
     this.containerEl.appendChild(el);
 
@@ -165,78 +167,42 @@ export class NotificationEngine {
   }
 
   private hide(el: HTMLElement, showNextAfterHide = true): void {
-    el.classList.remove('lm-notif-visible');
-    el.addEventListener('transitionend', () => {
+    let handled = false;
+    const finish = () => {
+      if (handled) return;
+      handled = true;
       el.remove();
       this.showing = false;
       if (showNextAfterHide && !this.paused) {
-        // Show next in queue after brief delay
         setTimeout(() => this.showNext(), 500);
       }
-    }, { once: true });
-  }
-
-  private esc(str: string): string {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-  }
-
-  private makeDraggable(target: HTMLElement, handle: HTMLElement): void {
-    let dragging = false;
-    let startX = 0;
-    let startY = 0;
-    let startLeft = 0;
-    let startTop = 0;
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      const left = Math.max(8, Math.min(startLeft + dx, window.innerWidth - target.offsetWidth - 8));
-      const top = Math.max(8, Math.min(startTop + dy, window.innerHeight - target.offsetHeight - 8));
-      target.style.left = `${left}px`;
-      target.style.top = `${top}px`;
-      target.style.right = 'auto';
     };
 
-    const onPointerUp = () => {
-      dragging = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    handle.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      dragging = true;
-      startX = event.clientX;
-      startY = event.clientY;
-      const rect = target.getBoundingClientRect();
-      startLeft = rect.left;
-      startTop = rect.top;
-      target.style.left = `${rect.left}px`;
-      target.style.top = `${rect.top}px`;
-      target.style.right = 'auto';
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    });
+    el.classList.remove('lm-notif-visible');
+    el.addEventListener('transitionend', finish, { once: true });
+    // Fallback if transitionend never fires (prefers-reduced-motion, etc.)
+    setTimeout(finish, 600);
   }
+
 }
 
 const NOTIFICATION_CSS = `
   .lm-notif {
-    position: fixed; top: 20px; right: 20px; width: 340px;
+    position: fixed; bottom: 140px; right: 20px; width: 340px;
     background: rgba(255,255,255,0.92); backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-radius: 16px; padding: 20px;
+    border-radius: 16px; padding: 20px; padding-left: 24px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04), 0 0 40px rgba(224,122,47,0.06);
     z-index: 100001; pointer-events: auto;
-    transform: translateY(-20px) scale(0.96); opacity: 0; filter: blur(4px);
+    transform: translateY(20px) scale(0.96); opacity: 0; filter: blur(4px);
     transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
-    border-left: 4px solid transparent;
-    border-image: linear-gradient(180deg, #E07A2F, #F5A623) 1;
-    border-image-slice: 1;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow: hidden;
+  }
+  .lm-notif::before {
+    content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px;
+    background: linear-gradient(180deg, #E07A2F, #F5A623);
+    border-radius: 16px 0 0 16px;
   }
   .lm-notif-visible { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
 
