@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import PersonaSwitcher from './components/PersonaSwitcher';
+import LuminoLoader from './components/LuminoLoader';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,15 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <PersonaSwitcher />
-        <script
-          src="/lumino/sdk/v1/lumino.js"
-          data-lumino-app-id="novapay-dashboard"
-          data-lumino-token-endpoint="/api/lumino-token"
-          data-lumino-api-url="/lumino"
-          data-lumino-environment="development"
-          data-lumino-debug="true"
-          data-lumino-role-storage-key="lumino_demo_role"
-        />
+        <LuminoLoader />
       </body>
     </html>
   );

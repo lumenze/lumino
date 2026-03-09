@@ -36,7 +36,7 @@ export async function registerSdkServeModule(app: FastifyInstance): Promise<void
     if (content) {
       reply
         .header('Content-Type', 'application/javascript')
-        .header('Cache-Control', 'no-cache')
+        .header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
         .header('Access-Control-Allow-Origin', '*')
         .send(content);
     } else {

@@ -67,6 +67,21 @@ services:
     depends_on:
       - server
 
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.dashboard
+    container_name: lumino-dashboard
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3300}:3300"
+    environment:
+      NODE_ENV: production
+      LUMINO_SERVER_URL: http://server:3000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    depends_on:
+      - server
+
 volumes:
   postgres_data:
   redis_data:

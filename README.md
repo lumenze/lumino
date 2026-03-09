@@ -13,7 +13,8 @@ lumino/
 │   └── ai-services/     # AI/ML services (Python + FastAPI)
 ├── apps/
 │   ├── novapay/         # Reference app: Fintech dashboard (Next.js)
-│   └── novaconnect/     # Reference app: Payments portal (Next.js)
+│   ├── novaconnect/     # Reference app: Payments portal (Next.js)
+│   └── dashboard/       # Lumino Admin Dashboard (Next.js)
 ├── infrastructure/
 │   ├── docker/          # Docker Compose + Dockerfiles
 │   ├── k8s/             # Kubernetes manifests (Phase 2)
@@ -31,6 +32,7 @@ lumino/
 | `ai-services` | Python + FastAPI | NL matching, health, translation | — |
 | `@lumino/novapay` | Next.js | Demo reference app | — |
 | `@lumino/novaconnect` | Next.js | Demo reference app (cross-app) | — |
+| `@lumino/dashboard` | Next.js | Admin dashboard (analytics, health, settings) | — |
 
 ## Tech Stack
 
@@ -48,6 +50,7 @@ lumino/
 | Lumino Server | 3000 |
 | NovaPay (demo app) | 3100 |
 | NovaConnect (demo app) | 3200 |
+| Dashboard | 3300 |
 | AI Services | 8000 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
@@ -64,8 +67,8 @@ pnpm install
 docker compose -f infrastructure/docker/docker-compose.yml up -d postgres redis
 
 # 3. Run Prisma migrations
-DATABASE_URL="postgresql://lumino:lumino@localhost:5432/lumino" \
-  npx prisma migrate deploy --schema=packages/server/prisma/schema.prisma
+ cd packages/server
+DATABASE_URL="postgresql://lumino:lumino@localhost:5432/lumino" pnpm exec prisma migrate deploy
 
 # 4. Generate Prisma client
 DATABASE_URL="postgresql://lumino:lumino@localhost:5432/lumino" \
@@ -79,28 +82,40 @@ pnpm --filter @lumino/server build
 # 6. Start server
 DATABASE_URL="postgresql://lumino:lumino@localhost:5432/lumino" pnpm --filter @lumino/server start &
 
-
 # 7. Start NovaPay demo (in a separate terminal)
 pnpm --filter @lumino/novapay dev &
+pnpm --filter @lumino/novaconnect dev &
 
+# 8. Start Dashboard (in a separate terminal)
+cd apps/dashboard && pnpm dev
 ```
 
-Then open http://localhost:3100 in your browser.
+Then open:
+- NovaPay: http://localhost:3100
+- NovaConnect: http://localhost:3200
+- Dashboard: http://localhost:3300
+
+> **Note:** If you get EMFILE errors on macOS, run `ulimit -n 10240` before starting dev servers, or run from the app directory directly (e.g. `cd apps/dashboard && pnpm dev`).
 
 ## Restart Commands
+
 
 ### Kill everything and restart
 
 ```bash
-# Kill existing processes on ports 3000 and 3100
-kill -9 $(lsof -ti:3000) $(lsof -ti:3100) 2>/dev/null
+# Kill existing processes on all ports
+kill -9 $(lsof -ti:3000) $(lsof -ti:3100) $(lsof -ti:3200) $(lsof -ti:3300) 2>/dev/null
 
 # Start server
 DATABASE_URL="postgresql://lumino:lumino@localhost:5432/lumino" \
   pnpm --filter @lumino/server dev &
 
-# Start NovaPay
+# Start demo apps
 pnpm --filter novapay dev &
+pnpm --filter novaconnect dev &
+
+# Start dashboard (from its directory to avoid EMFILE errors)
+cd apps/dashboard && pnpm dev &
 ```
 
 ### Rebuild SDK after changes
@@ -218,45 +233,32 @@ GET http://localhost:3100/api/lumino-token?role=customer
 GET http://localhost:3100/api/lumino-token?role=author
 ```
 
-### Minimal Host Integration
+## Dashboard
 
-For host apps, integration is a single script tag:
+The Lumino Dashboard (`apps/dashboard`) is an admin UI for managing walkthroughs, viewing analytics, monitoring health, and configuring SDK integration.
 
-```html
-<script
-  src="/lumino/sdk/v1/lumino.js"
-  data-lumino-app-id="novapay-dashboard"
-  data-lumino-token-endpoint="/api/lumino-token"
-  data-lumino-api-url="/lumino"
-  data-lumino-environment="development"
-  data-lumino-debug="true"
-></script>
+**Pages:**
+- **Overview** — Stat cards, recent walkthroughs, health summary
+- **Walkthroughs** — List, search, filter by status, publish/archive/delete
+- **Walkthrough Detail** — Step viewer, analytics, version history
+- **Analytics** — Completion rates, top walkthroughs chart, sortable table
+- **Analytics Detail** — Daily trend line chart, step drop-off funnel
+- **Health** — Walkthrough health scores, step-by-step health results
+- **Settings** — SDK integration guide with copyable code snippets
+
+### Start Dashboard
+
+```bash
+# Development (from app directory to avoid EMFILE)
+cd apps/dashboard && pnpm dev
+
+# Production (build + start)
+cd apps/dashboard && pnpm build && npx next start -p 3300
 ```
 
-Implemented in NovaPay layout:
-[apps/novapay/src/app/layout.tsx](apps/novapay/src/app/layout.tsx)
+### Dashboard Token Endpoint
 
-Auto-init behavior is implemented in:
-[packages/sdk/src/index.ts](packages/sdk/src/index.ts)
-
-### NLU / Chatbot MVP Modes
-
-Lumino now supports both integration patterns:
-
-1. Host has no chatbot
-- SDK renders embedded **Ask Lumino** launcher/panel.
-- User query is resolved via `POST /api/v1/search/nl`.
-- Selecting a result starts the walkthrough directly.
-
-2. Host already has chatbot/LLM
-- Host bot calls `window.Lumino.searchWalkthroughs(query)`.
-- Host UI renders suggested guides.
-- Host starts guide with `window.Lumino.startWalkthrough(walkthroughId)`.
-
-NovaPay demo includes both:
-- Embedded SDK chat (no host chatbot mode)
-- Host chatbot simulation panel in
-[apps/novapay/src/app/page.tsx](apps/novapay/src/app/page.tsx)
+The dashboard has its own token endpoint at `/api/lumino-token` that signs admin JWTs. It uses the same `JWT_SECRET` as the Lumino server.
 
 ## API Endpoints
 
@@ -288,6 +290,32 @@ NovaPay demo includes both:
 | GET | `/health` | Server health check |
 | GET | `/sdk/v1/lumino.js` | SDK bundle (IIFE) |
 | POST | `/api/v1/auth/verify` | Verify JWT token |
+
+## Production Deployment (Docker)
+
+```bash
+# Build and start all services (Server + NovaPay + Dashboard + PostgreSQL + Redis)
+cd infrastructure/docker
+docker compose -f docker-compose.prod.yml --env-file ../../.env up -d --build
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Restart a specific service
+docker compose -f docker-compose.prod.yml restart dashboard
+
+# Stop everything
+docker compose -f docker-compose.prod.yml down
+```
+
+Services in production:
+| Service | Container | Port |
+|---------|-----------|------|
+| Lumino Server | lumino-server | 3000 |
+| NovaPay | lumino-novapay | 3100 |
+| Dashboard | lumino-dashboard | 3300 |
+| PostgreSQL | lumino-postgres | 5432 |
+| Redis | lumino-redis | 6379 |
 
 ## Key Decisions
 

@@ -25,6 +25,7 @@ import { EventBus, LuminoEvent } from './core/event-bus';
 import { Logger } from './utils/logger';
 import { CommandPalette } from './search/command-palette';
 import { makeDraggable } from './utils/draggable';
+import { escapeHtml } from './utils/escape-html';
 
 type LuminoScriptConfig = {
   appId: string;
@@ -417,28 +418,102 @@ export class Lumino {
     const container = this.shadowDom.getContainer('author-fab');
     const dialog = document.createElement('div');
     dialog.className = 'lm-save-dialog';
-    dialog.innerHTML = `
+
+    // Header
+    const header = document.createElement('div');
+    header.innerHTML = `
       <h4 style="font-size:15px;font-weight:700;margin-bottom:4px;color:#FFF">Save Walkthrough</h4>
       <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px">${steps.length} steps recorded</p>
-      <input class="lm-save-input" id="lm-save-title" placeholder="Walkthrough title" />
-      <input class="lm-save-input" id="lm-save-desc" placeholder="Short description" />
-      <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="lm-save-btn" id="lm-save-submit">Save &amp; Create</button>
-        <button class="lm-save-cancel" id="lm-save-cancel">Discard</button>
+    `;
+    dialog.appendChild(header);
+
+    // Step edit list
+    const stepList = document.createElement('div');
+    stepList.className = 'lm-step-edit-list';
+
+    const stepInputs: Array<{ titleInput: HTMLInputElement; descInput: HTMLInputElement }> = [];
+
+    steps.forEach((step, i) => {
+      const card = document.createElement('div');
+      card.className = 'lm-step-edit-card';
+
+      const badge = document.createElement('div');
+      badge.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+      badge.innerHTML = `
+        <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#FFF;flex-shrink:0">${i + 1}</div>
+        <span style="font-size:10px;color:#E07A2F;font-weight:600;text-transform:uppercase">${escapeHtml(step.actionType)}</span>
+      `;
+      card.appendChild(badge);
+
+      const titleInput = document.createElement('input');
+      titleInput.className = 'lm-save-input';
+      titleInput.placeholder = 'Step title';
+      titleInput.value = step.title;
+      card.appendChild(titleInput);
+
+      const descInput = document.createElement('input');
+      descInput.className = 'lm-save-input';
+      descInput.placeholder = 'Step description';
+      descInput.value = step.description;
+      descInput.style.marginBottom = '0';
+      card.appendChild(descInput);
+
+      stepInputs.push({ titleInput, descInput });
+      stepList.appendChild(card);
+    });
+
+    dialog.appendChild(stepList);
+
+    // Walkthrough-level inputs
+    const wtSection = document.createElement('div');
+    wtSection.innerHTML = `
+      <div style="border-top:1px solid rgba(255,255,255,0.08);margin:12px 0;padding-top:12px">
+        <p style="font-size:10px;color:rgba(255,255,255,.3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Walkthrough Details</p>
       </div>
     `;
+    dialog.appendChild(wtSection);
+
+    const wtTitleInput = document.createElement('input');
+    wtTitleInput.className = 'lm-save-input';
+    wtTitleInput.placeholder = 'Walkthrough title';
+    dialog.appendChild(wtTitleInput);
+
+    const wtDescInput = document.createElement('input');
+    wtDescInput.className = 'lm-save-input';
+    wtDescInput.placeholder = 'Short description';
+    dialog.appendChild(wtDescInput);
+
+    // Buttons
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;margin-top:12px';
+
+    const submit = document.createElement('button');
+    submit.className = 'lm-save-btn';
+    submit.textContent = 'Save & Create';
+    btnRow.appendChild(submit);
+
+    const cancel = document.createElement('button');
+    cancel.className = 'lm-save-cancel';
+    cancel.textContent = 'Discard';
+    btnRow.appendChild(cancel);
+
+    dialog.appendChild(btnRow);
     container.appendChild(dialog);
     requestAnimationFrame(() => dialog.classList.add('lm-save-visible'));
     makeDraggable(dialog, dialog);
 
-    const submit = dialog.querySelector('#lm-save-submit') as HTMLElement;
-    const cancel = dialog.querySelector('#lm-save-cancel') as HTMLElement;
-    const titleInput = dialog.querySelector('#lm-save-title') as HTMLInputElement;
-    const descInput = dialog.querySelector('#lm-save-desc') as HTMLInputElement;
-
     submit.addEventListener('click', async () => {
-      const title = titleInput.value.trim() || 'Untitled Walkthrough';
-      const desc = descInput.value.trim() || 'Recorded walkthrough';
+      const title = wtTitleInput.value.trim() || 'Untitled Walkthrough';
+      const desc = wtDescInput.value.trim() || 'Recorded walkthrough';
+
+      // Apply edited step values
+      stepInputs.forEach((inputs, i) => {
+        const step = steps[i];
+        if (!step) return;
+        step.title = inputs.titleInput.value.trim() || step.title;
+        step.description = inputs.descInput.value.trim() || step.description;
+      });
+
       submit.textContent = 'Saving...';
       try {
         const definition = {
@@ -457,7 +532,6 @@ export class Lumino {
           appId: this.config.appId,
           definition,
         });
-        // Auto-publish so it's immediately visible to customers
         this.logger.info('Walkthrough created', { id: result?.id });
         if (result?.id) {
           await this.apiClient.post(`${API_ROUTES.WALKTHROUGHS}/${result.id}/publish`, {}).catch((pubErr) => {
@@ -579,7 +653,8 @@ const AUTHOR_FAB_CSS = `
   }
   .lm-save-dialog {
     position: fixed; bottom: 80px; right: 20px; z-index: 100000;
-    width: 300px; background: #1E1E36; border-radius: 16px; padding: 20px;
+    width: 360px; max-height: 80vh; overflow-y: auto;
+    background: #1E1E36; border-radius: 16px; padding: 20px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.4);
     border: 1px solid rgba(255,255,255,0.08);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -609,6 +684,19 @@ const AUTHOR_FAB_CSS = `
     color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 600;
     cursor: pointer; font-family: inherit;
   }
+  .lm-step-edit-list {
+    max-height: 200px; overflow-y: auto; margin-bottom: 4px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .lm-step-edit-list::-webkit-scrollbar { width: 4px; }
+  .lm-step-edit-list::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15); border-radius: 2px;
+  }
+  .lm-step-edit-card {
+    padding: 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
 `;
 
 // ── Global ──────────────────────────────────────────────────────────────
@@ -630,6 +718,7 @@ export const LuminoBootstrap = {
   async initFromScript(script?: HTMLScriptElement): Promise<Lumino | null> {
     const scriptEl = findLuminoScript(script);
     if (!scriptEl) {
+      console.warn('[Lumino] No <script data-lumino-app-id> element found. SDK auto-init skipped.');
       return null;
     }
 
@@ -678,7 +767,18 @@ export const LuminoBootstrap = {
 
 if (typeof window !== 'undefined') {
   window.LuminoBootstrap = LuminoBootstrap;
-  void LuminoBootstrap.initFromScript();
+
+  // Try init immediately; if script element not found (e.g. dynamic injection
+  // by Next.js), retry once after DOM is interactive.
+  const tryInit = () => void LuminoBootstrap.initFromScript();
+  if (findLuminoScript()) {
+    tryInit();
+  } else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInit, { once: true });
+  } else {
+    // DOM already ready — use a microtask to let the injected script element settle
+    Promise.resolve().then(tryInit);
+  }
 }
 
 export default Lumino;
