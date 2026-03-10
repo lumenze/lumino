@@ -44,7 +44,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-lumino}:${POSTGRES_PASSWORD:-lumino}@postgres:5432/${POSTGRES_DB:-lumino}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     depends_on:
       postgres:
@@ -63,7 +63,7 @@ services:
     environment:
       NODE_ENV: production
       LUMINO_SERVER_URL: http://server:3000
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
     depends_on:
       - server
 
@@ -78,7 +78,7 @@ services:
     environment:
       NODE_ENV: production
       LUMINO_SERVER_URL: http://server:3000
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
     depends_on:
       - server
 
