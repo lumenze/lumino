@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const secret = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
 

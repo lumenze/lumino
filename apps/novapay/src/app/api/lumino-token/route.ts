@@ -8,6 +8,8 @@ import type { NextRequest } from 'next/server';
  * In production, the host app's real auth system provides this.
  */
 
+export const dynamic = 'force-dynamic';
+
 const PERSONAS = {
   author: { sub: 'user-alex-chen', role: 'author', name: 'Alex Chen' },
   customer: { sub: 'user-sarah-johnson', role: 'customer', name: 'Sarah Johnson' },
