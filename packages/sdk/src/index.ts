@@ -389,7 +389,7 @@ export class Lumino {
 
     const fab = document.createElement('button');
     fab.className = 'lm-author-fab';
-    fab.innerHTML = '&#9679; Record Guide';
+    fab.innerHTML = '<span class="lm-rec-dot"></span> Record Guide';
     container.appendChild(fab);
     makeDraggable(fab, fab);
 
@@ -633,8 +633,8 @@ export class Lumino {
 const AUTHOR_FAB_CSS = `
   .lm-author-fab {
     position: fixed; bottom: 20px; right: 20px; z-index: 100000;
-    display: flex; align-items: center; gap: 6px;
-    padding: 12px 20px; border-radius: 14px; border: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 13px 22px; border-radius: 16px; border: none;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
     color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -642,61 +642,80 @@ const AUTHOR_FAB_CSS = `
     transition: all 0.2s; pointer-events: auto;
     cursor: move;
   }
+  .lm-author-fab .lm-rec-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #FFF;
+    animation: lm-rec-blink 1.5s ease-in-out infinite;
+  }
+  @keyframes lm-rec-blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
   @keyframes lm-fab-glow {
-    0%,100% { box-shadow: 0 8px 30px rgba(224,122,47,0.35); }
-    50%     { box-shadow: 0 8px 40px rgba(224,122,47,0.55), 0 0 60px rgba(224,122,47,0.15); }
+    0%,100% { box-shadow: 0 8px 28px rgba(224,122,47,0.3); }
+    50%     { box-shadow: 0 8px 36px rgba(224,122,47,0.5), 0 0 50px rgba(224,122,47,0.12); }
   }
   .lm-author-fab:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(224,122,47,0.45);
+    transform: translateY(-3px);
+    box-shadow: 0 14px 40px rgba(224,122,47,0.45);
     animation: none;
   }
   .lm-save-dialog {
     position: fixed; bottom: 80px; right: 20px; z-index: 100000;
     width: 360px; max-height: 80vh; overflow-y: auto;
-    background: #1E1E36; border-radius: 16px; padding: 20px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(15,15,30,0.94); border-radius: 20px; padding: 22px;
+    backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     pointer-events: auto;
     opacity: 0; transform: translateY(10px);
     transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
     cursor: move;
   }
+  .lm-save-dialog::before {
+    content: ''; position: absolute; top: 0; left: 20px; right: 20px; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(224,122,47,0.3), transparent);
+    border-radius: 0 0 2px 2px;
+  }
   .lm-save-visible { opacity: 1; transform: translateY(0); }
   .lm-save-input {
-    display: block; width: 100%; padding: 10px 12px; margin-bottom: 8px;
-    border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.06); color: #FFF; font-size: 13px;
-    font-family: inherit; outline: none;
+    display: block; width: 100%; padding: 11px 14px; margin-bottom: 8px;
+    border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.05); color: #FFF; font-size: 13px;
+    font-family: inherit; outline: none; transition: border-color 0.2s;
   }
-  .lm-save-input::placeholder { color: rgba(255,255,255,0.25); }
-  .lm-save-input:focus { border-color: #E07A2F; }
+  .lm-save-input::placeholder { color: rgba(255,255,255,0.2); }
+  .lm-save-input:focus { border-color: #E07A2F; box-shadow: 0 0 0 3px rgba(224,122,47,0.1); }
   .lm-save-btn {
-    flex: 1; padding: 10px 16px; border-radius: 10px; border: none;
+    flex: 1; padding: 11px 18px; border-radius: 12px; border: none;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
     color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer;
-    font-family: inherit;
+    font-family: inherit; transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(224,122,47,0.25);
   }
+  .lm-save-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(224,122,47,0.35); }
   .lm-save-cancel {
-    padding: 10px 16px; border-radius: 10px;
+    padding: 11px 18px; border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1); background: transparent;
     color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 600;
-    cursor: pointer; font-family: inherit;
+    cursor: pointer; font-family: inherit; transition: all 0.2s;
   }
+  .lm-save-cancel:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); }
   .lm-step-edit-list {
     max-height: 200px; overflow-y: auto; margin-bottom: 4px;
     display: flex; flex-direction: column; gap: 8px;
   }
   .lm-step-edit-list::-webkit-scrollbar { width: 4px; }
   .lm-step-edit-list::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.15); border-radius: 2px;
+    background: rgba(255,255,255,0.12); border-radius: 4px;
   }
   .lm-step-edit-card {
-    padding: 10px; border-radius: 8px;
+    padding: 12px; border-radius: 10px;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.06);
+    transition: border-color 0.15s;
   }
+  .lm-step-edit-card:hover { border-color: rgba(255,255,255,0.1); }
 `;
 
 // ── Global ──────────────────────────────────────────────────────────────

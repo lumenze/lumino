@@ -189,10 +189,10 @@ export class NotificationEngine {
 const NOTIFICATION_CSS = `
   .lm-notif {
     position: fixed; bottom: 140px; right: 20px; width: 340px;
-    background: rgba(255,255,255,0.92); backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border-radius: 16px; padding: 20px; padding-left: 24px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04), 0 0 40px rgba(224,122,47,0.06);
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-radius: 18px; padding: 22px; padding-left: 26px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.03), 0 0 40px rgba(224,122,47,0.05);
     z-index: 100001; pointer-events: auto;
     transform: translateY(20px) scale(0.96); opacity: 0; filter: blur(4px);
     transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
@@ -200,24 +200,30 @@ const NOTIFICATION_CSS = `
     overflow: hidden;
   }
   .lm-notif::before {
-    content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px;
+    content: ''; position: absolute; top: 8px; left: 0; bottom: 8px; width: 5px;
     background: linear-gradient(180deg, #E07A2F, #F5A623);
-    border-radius: 16px 0 0 16px;
+    border-radius: 0 4px 4px 0;
+  }
+  .lm-notif::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(224,122,47,0.2), transparent);
   }
   .lm-notif-visible { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
+  .lm-notif-visible:hover { transform: translateY(-2px) scale(1); box-shadow: 0 28px 70px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.03); }
 
   .lm-notif-badge {
     display: inline-flex; align-items: center; gap: 5px;
-    background: rgba(224,122,47,0.12); color: #E07A2F;
+    background: rgba(224,122,47,0.1); color: #E07A2F;
     font-size: 10px; font-weight: 700;
-    padding: 4px 10px; border-radius: 100px; letter-spacing: 0.5px;
+    padding: 4px 12px; border-radius: 100px; letter-spacing: 0.5px;
   }
   .lm-notif-title {
     font-size: 15px; font-weight: 700; margin: 10px 0 6px; color: #1F2937;
+    letter-spacing: -0.01em;
   }
   .lm-notif-header { cursor: move; user-select: none; }
   .lm-notif-desc {
-    font-size: 12px; color: #6B7280; line-height: 1.6; margin-bottom: 8px;
+    font-size: 12.5px; color: #6B7280; line-height: 1.65; margin-bottom: 8px;
   }
   .lm-notif-meta {
     font-size: 11px; color: #9CA3AF; margin-bottom: 14px;
@@ -226,25 +232,25 @@ const NOTIFICATION_CSS = `
   .lm-notif-actions { display: flex; gap: 8px; }
 
   .lm-notif-cta {
-    flex: 1; padding: 10px 16px; border-radius: 10px; border: none;
+    flex: 1; padding: 11px 16px; border-radius: 12px; border: none;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
     color: #FFF; font-size: 13px; font-weight: 700; cursor: pointer;
-    font-family: inherit; box-shadow: 0 4px 16px rgba(224,122,47,0.3);
+    font-family: inherit; box-shadow: 0 4px 16px rgba(224,122,47,0.25);
     transition: all 0.2s; position: relative; overflow: hidden;
   }
   .lm-notif-cta::after {
     content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
     animation: lm-shimmer 3s ease-in-out infinite;
   }
   @keyframes lm-shimmer { 0% { left: -100%; } 50%,100% { left: 100%; } }
-  .lm-notif-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(224,122,47,0.4); }
+  .lm-notif-cta:hover { transform: translateY(-1px) scale(1.02); box-shadow: 0 8px 24px rgba(224,122,47,0.35); }
 
   .lm-notif-dismiss {
-    padding: 10px 16px; border-radius: 10px;
+    padding: 11px 16px; border-radius: 12px;
     border: 1px solid #E5E7EB; background: transparent;
     color: #6B7280; font-size: 13px; font-weight: 600;
     cursor: pointer; font-family: inherit; transition: all 0.2s;
   }
-  .lm-notif-dismiss:hover { background: #F5F6FA; }
+  .lm-notif-dismiss:hover { background: #F3F4F6; border-color: #D1D5DB; }
 `;

@@ -52,7 +52,7 @@ export class CommandPalette {
 
     this.launcherEl = document.createElement('button');
     this.launcherEl.className = 'lm-chat-launcher';
-    this.launcherEl.textContent = 'Ask Lumino';
+    this.launcherEl.innerHTML = '✦ Ask Lumino';
     this.launcherEl.addEventListener('click', () => {
       if (this.visible) {
         this.close();
@@ -190,44 +190,77 @@ export class CommandPalette {
 const PALETTE_CSS = `
   .lm-chat-launcher {
     position: fixed; right: 20px; bottom: 20px; z-index: 100000;
-    border: none; border-radius: 999px; padding: 12px 16px; cursor: pointer;
-    background: #111827; color: #fff; font-weight: 600; font-size: 13px;
-    box-shadow: 0 12px 28px rgba(0,0,0,0.2);
+    border: none; border-radius: 999px; padding: 12px 18px; cursor: pointer;
+    background: linear-gradient(135deg, #E07A2F, #F5A623);
+    color: #fff; font-weight: 700; font-size: 13px;
+    box-shadow: 0 8px 28px rgba(224,122,47,0.3);
+    transition: all 0.2s;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .lm-chat-launcher:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(224,122,47,0.4);
   }
   .lm-chat-panel {
     position: fixed; right: 20px; bottom: 72px; width: 360px; max-height: 70vh;
-    overflow: auto; background: #fff; border-radius: 14px; padding: 14px;
-    border: 1px solid #e5e7eb; box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+    overflow: auto; background: #fff; border-radius: 18px; padding: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 24px 48px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.03);
     z-index: 100000; opacity: 0; transform: translateY(8px) scale(0.98);
-    pointer-events: none; transition: all 0.2s ease;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    pointer-events: none; transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .lm-chat-panel::before {
+    content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(224,122,47,0.3), transparent);
+    border-radius: 0 0 2px 2px;
   }
   .lm-chat-visible { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-  .lm-chat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .lm-chat-header { cursor: move; user-select: none; }
-  .lm-chat-close { border: none; background: transparent; font-size: 18px; cursor: pointer; color: #6b7280; }
-  .lm-chat-subtitle { color: #6b7280; font-size: 12px; line-height: 1.4; margin-bottom: 10px; }
+  .lm-chat-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; cursor: move; user-select: none;
+  }
+  .lm-chat-header strong { font-size: 14px; font-weight: 700; color: #111827; }
+  .lm-chat-close {
+    border: none; background: transparent; font-size: 18px; cursor: pointer;
+    color: #9ca3af; width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+  }
+  .lm-chat-close:hover { background: #f3f4f6; color: #6b7280; }
+  .lm-chat-subtitle { color: #9ca3af; font-size: 12px; line-height: 1.4; margin-bottom: 12px; }
   .lm-chat-form { display: flex; gap: 8px; margin-bottom: 12px; }
   .lm-chat-input {
-    flex: 1; border: 1px solid #d1d5db; border-radius: 10px; padding: 10px 12px;
-    font-size: 13px; outline: none;
+    flex: 1; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px 14px;
+    font-size: 13px; outline: none; transition: border-color 0.2s;
+    font-family: inherit;
   }
-  .lm-chat-input:focus { border-color: #2563eb; }
+  .lm-chat-input:focus { border-color: #E07A2F; box-shadow: 0 0 0 3px rgba(224,122,47,0.08); }
   .lm-chat-submit {
-    border: none; background: #2563eb; color: #fff; border-radius: 10px;
-    padding: 10px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: none; background: linear-gradient(135deg, #E07A2F, #F5A623);
+    color: #fff; border-radius: 12px;
+    padding: 10px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(224,122,47,0.2);
   }
+  .lm-chat-submit:hover { box-shadow: 0 4px 12px rgba(224,122,47,0.3); }
   .lm-chat-results { display: grid; gap: 8px; }
   .lm-chat-result {
-    border: 1px solid #e5e7eb; background: #fff; border-radius: 10px; padding: 10px;
-    text-align: left; cursor: pointer;
+    border: 1px solid #e5e7eb; background: #fff; border-radius: 12px; padding: 12px;
+    text-align: left; cursor: pointer; transition: all 0.15s; position: relative;
   }
-  .lm-chat-result:hover { border-color: #bfdbfe; background: #f8fbff; }
+  .lm-chat-result:hover {
+    border-color: rgba(224,122,47,0.2); background: #FFFBF7;
+    box-shadow: 0 2px 8px rgba(224,122,47,0.06);
+  }
+  .lm-chat-result:hover::before {
+    content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+    background: linear-gradient(180deg, #E07A2F, #F5A623); border-radius: 0 3px 3px 0;
+  }
   .lm-chat-result-title { font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 4px; }
-  .lm-chat-result-desc { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+  .lm-chat-result-desc { font-size: 12px; color: #6b7280; margin-bottom: 6px; line-height: 1.5; }
   .lm-chat-result-meta { font-size: 11px; color: #9ca3af; }
   .lm-chat-empty {
-    border: 1px dashed #d1d5db; border-radius: 10px; padding: 10px;
-    font-size: 12px; color: #6b7280;
+    border: 1.5px dashed #e5e7eb; border-radius: 12px; padding: 20px;
+    font-size: 12px; color: #9ca3af; text-align: center;
   }
 `;
