@@ -25,12 +25,51 @@ interface WalkthroughHealth {
   }>;
 }
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; icon: typeof ShieldCheck }> = {
-  healthy: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: ShieldCheck },
-  warning: { bg: 'bg-amber-50', text: 'text-amber-700', icon: AlertTriangle },
-  critical: { bg: 'bg-red-50', text: 'text-red-700', icon: XCircle },
-  unchecked: { bg: 'bg-gray-50', text: 'text-gray-500', icon: HeartPulse },
+const STATUS_CONFIG: Record<string, { gradient: string; shadow: string; text: string; icon: typeof ShieldCheck }> = {
+  healthy: { gradient: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/20', text: 'text-emerald-700', icon: ShieldCheck },
+  warning: { gradient: 'from-amber-500 to-amber-600', shadow: 'shadow-amber-500/20', text: 'text-amber-700', icon: AlertTriangle },
+  critical: { gradient: 'from-red-500 to-red-600', shadow: 'shadow-red-500/20', text: 'text-red-700', icon: XCircle },
+  unchecked: { gradient: 'from-gray-400 to-gray-500', shadow: 'shadow-gray-400/20', text: 'text-gray-500', icon: HeartPulse },
 };
+
+function ScoreRing({ score, size = 64 }: { score: number; size?: number }) {
+  const stroke = 5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+
+  const color = score >= 80 ? '#10b981' : score >= 50 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#f1f5f9"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-sm font-black" style={{ color }}>{score}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function HealthPage() {
   const [overview, setOverview] = useState<HealthOverview | null>(null);
@@ -59,40 +98,33 @@ export default function HealthPage() {
     load();
   }, []);
 
-  function scoreColor(score: number) {
-    if (score >= 80) return 'text-emerald-600';
-    if (score >= 50) return 'text-amber-600';
-    return 'text-red-600';
-  }
-
-  function scoreBg(score: number) {
-    if (score >= 80) return 'bg-emerald-500';
-    if (score >= 50) return 'bg-amber-500';
-    return 'bg-red-500';
-  }
-
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">Health Monitoring</h1>
+        <h1 className="text-2xl font-black tracking-tight">Health Monitoring</h1>
         <p className="mt-1 text-sm text-gray-500">
           Track walkthrough selector health and detect breakages
         </p>
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center text-sm text-gray-400">
-          Loading health data...
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-gray-400">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            Loading health data...
+          </div>
         </div>
       ) : (
-        <>
+        <div className="animate-slide-up">
           {/* Overview cards */}
           {overview && (
             <div className="mb-8 grid grid-cols-4 gap-4">
-              <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-5">
-                <HeartPulse className="h-10 w-10 text-brand-500" />
+              <div className="glass-card flex items-center gap-4 rounded-2xl p-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-orange-500 shadow-lg shadow-brand-500/20">
+                  <HeartPulse className="h-6 w-6 text-white" />
+                </div>
                 <div>
-                  <p className="text-2xl font-extrabold">{overview.totalWalkthroughs}</p>
+                  <p className="text-2xl font-black">{overview.totalWalkthroughs}</p>
                   <p className="text-xs text-gray-500">Monitored</p>
                 </div>
               </div>
@@ -103,16 +135,19 @@ export default function HealthPage() {
                   <div
                     key={key}
                     className={cn(
-                      'flex items-center gap-4 rounded-xl border border-gray-200 p-5',
-                      cfg.bg
+                      'relative overflow-hidden rounded-2xl p-5 shadow-lg',
+                      `bg-gradient-to-br ${cfg.gradient} ${cfg.shadow}`
                     )}
                   >
-                    <Icon className={cn('h-8 w-8', cfg.text)} />
-                    <div>
-                      <p className={cn('text-2xl font-extrabold', cfg.text)}>
-                        {overview.summary[key]}
-                      </p>
-                      <p className="text-xs capitalize text-gray-500">{key}</p>
+                    <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-white/[0.08]" />
+                    <div className="relative flex items-center gap-3">
+                      <Icon className="h-6 w-6 text-white/80" />
+                      <div>
+                        <p className="text-2xl font-black text-white">
+                          {overview.summary[key]}
+                        </p>
+                        <p className="text-xs font-medium capitalize text-white/70">{key}</p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -135,38 +170,32 @@ export default function HealthPage() {
                       )
                     }
                     className={cn(
-                      'rounded-xl border bg-white p-5 text-left transition hover:shadow-md',
+                      'glass-card rounded-2xl p-5 text-left transition-all duration-200',
                       selected?.walkthroughId === item.walkthroughId
-                        ? 'border-brand-300 ring-2 ring-brand-100'
-                        : 'border-gray-200'
+                        ? 'ring-2 ring-brand-400 shadow-lg'
+                        : 'hover:shadow-md hover:-translate-y-0.5'
                     )}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
-                        <Icon className={cn('h-5 w-5', cfg.text)} />
+                        <Icon className={cn('h-4 w-4', cfg.text)} />
                         <span
                           className={cn(
                             'rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
-                            cfg.bg,
-                            cfg.text
+                            item.status === 'healthy' && 'bg-emerald-50 text-emerald-700',
+                            item.status === 'warning' && 'bg-amber-50 text-amber-700',
+                            item.status === 'critical' && 'bg-red-50 text-red-700',
+                            !['healthy', 'warning', 'critical'].includes(item.status) && 'bg-gray-100 text-gray-500'
                           )}
                         >
                           {item.status}
                         </span>
                       </div>
-                      <p className={cn('text-xl font-extrabold', scoreColor(item.overallScore))}>
-                        {item.overallScore}
-                      </p>
+                      <ScoreRing score={item.overallScore} size={56} />
                     </div>
                     <p className="mt-3 truncate text-sm font-semibold">
                       {item.walkthroughTitle}
                     </p>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                      <div
-                        className={cn('h-full rounded-full', scoreBg(item.overallScore))}
-                        style={{ width: `${item.overallScore}%` }}
-                      />
-                    </div>
                     <p className="mt-2 text-[10px] text-gray-400">
                       Last checked{' '}
                       {new Date(item.lastCheckedAt).toLocaleDateString()}
@@ -176,55 +205,45 @@ export default function HealthPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-              <HeartPulse className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-              <p className="text-sm text-gray-400">
-                No health data available yet. Health checks run automatically after
-                walkthroughs are published.
+            <div className="glass-card flex flex-col items-center rounded-2xl py-16">
+              <HeartPulse className="mb-3 h-12 w-12 text-gray-200" />
+              <p className="text-sm font-medium text-gray-400">
+                No health data available yet
+              </p>
+              <p className="mt-1 text-xs text-gray-300">
+                Health checks run automatically after walkthroughs are published
               </p>
             </div>
           )}
 
           {/* Detail panel */}
           {selected && selected.stepResults && selected.stepResults.length > 0 && (
-            <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
+            <div className="mt-6 glass-card rounded-2xl p-6 animate-fade-in">
               <h2 className="mb-4 text-sm font-bold">
                 Step Health — {selected.walkthroughTitle}
               </h2>
               <div className="space-y-3">
                 {selected.stepResults.map((step) => {
-                  const stepCfg = STATUS_CONFIG[step.status] || STATUS_CONFIG.unchecked;
+                  const scoreColor = step.score >= 80 ? 'text-emerald-600' : step.score >= 50 ? 'text-amber-600' : 'text-red-600';
                   return (
                     <div
                       key={step.stepIndex}
-                      className="flex items-start gap-4 rounded-lg border border-gray-100 p-4"
+                      className="flex items-start gap-4 rounded-xl border border-gray-100 p-4 transition hover:bg-gray-50/50"
                     >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 text-xs font-bold text-gray-600">
                         {step.stepIndex + 1}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold">{step.stepTitle}</p>
-                          <span
-                            className={cn(
-                              'rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize',
-                              stepCfg.bg,
-                              stepCfg.text
-                            )}
-                          >
-                            {step.status}
-                          </span>
-                          <span className={cn('text-xs font-bold', scoreColor(step.score))}>
+                          <span className={cn('text-xs font-bold', scoreColor)}>
                             {step.score}/100
                           </span>
                         </div>
                         {step.issues.length > 0 && (
-                          <ul className="mt-1 space-y-0.5">
+                          <ul className="mt-1.5 space-y-0.5">
                             {step.issues.map((issue, idx) => (
-                              <li
-                                key={idx}
-                                className="text-xs text-red-500"
-                              >
+                              <li key={idx} className="text-xs text-red-500">
                                 {issue}
                               </li>
                             ))}
@@ -237,7 +256,7 @@ export default function HealthPage() {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

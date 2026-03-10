@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Sidebar />
-        <main className="ml-[240px] min-h-screen">{children}</main>
+        <main className="ml-[240px] min-h-screen animate-fade-in">{children}</main>
       </body>
     </html>
   );

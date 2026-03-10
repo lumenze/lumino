@@ -8,6 +8,7 @@ import {
   BarChart3,
   HeartPulse,
   Settings,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,20 +24,24 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col bg-sidebar">
+    <aside className="fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
       {/* Logo */}
-      <div className="flex items-center gap-3 border-b border-white/5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-400 text-sm font-extrabold text-white">
+      <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-5">
+        <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 via-brand-500 to-orange-600 text-sm font-black text-white shadow-lg shadow-brand-500/30">
           L
+          <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
         </div>
         <div>
-          <div className="text-base font-bold text-white">Lumino</div>
-          <div className="text-[10px] font-medium text-slate-500">Dashboard</div>
+          <div className="text-base font-bold text-white tracking-tight">Lumino</div>
+          <div className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+            <Sparkles className="h-2.5 w-2.5" />
+            AI-Native DAP
+          </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-0.5 px-3 py-4">
         {NAV_ITEMS.map((item) => {
           const isActive =
             item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -46,13 +51,16 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive
-                  ? 'bg-white/10 text-white'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                  ? 'bg-brand-500/15 text-brand-300'
+                  : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
               )}
             >
-              <Icon className="h-4 w-4" />
+              {isActive && (
+                <div className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-500" />
+              )}
+              <Icon className={cn('h-4 w-4', isActive && 'text-brand-400')} />
               {item.label}
             </Link>
           );
@@ -60,15 +68,18 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-white/5 px-5 py-4">
+      <div className="border-t border-white/[0.06] px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 text-xs font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-pink-500 text-xs font-bold text-white shadow-md shadow-violet-500/20">
             A
           </div>
           <div>
             <div className="text-xs font-semibold text-slate-300">Admin</div>
             <div className="text-[10px] text-slate-500">admin@lumino.dev</div>
           </div>
+        </div>
+        <div className="mt-3 rounded-md bg-white/[0.04] px-2.5 py-1.5 text-center text-[10px] font-medium text-slate-500">
+          Lumino v1.0 MVP
         </div>
       </div>
     </aside>

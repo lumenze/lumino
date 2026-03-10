@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api';
 import StatusBadge from '@/components/StatusBadge';
 import {
@@ -12,8 +13,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
+import { cn } from '@/lib/utils';
 
 interface Walkthrough {
   id: string;
@@ -105,13 +106,12 @@ export default function AnalyticsPage() {
       ? Math.round(rows.reduce((s, r) => s + r.completionRate, 0) / rows.length)
       : 0;
 
-  // Top 5 by completion rate for the bar chart
   const top5 = [...rows]
     .filter((r) => r.impressions > 0)
     .sort((a, b) => b.completionRate - a.completionRate)
     .slice(0, 5)
     .map((r) => ({
-      name: r.title.length > 20 ? r.title.slice(0, 20) + '…' : r.title,
+      name: r.title.length > 20 ? r.title.slice(0, 20) + '\u2026' : r.title,
       completionRate: r.completionRate,
       completions: r.completions,
     }));
@@ -137,56 +137,59 @@ export default function AnalyticsPage() {
   const SortHeader = ({ label, field }: { label: string; field: SortKey }) => (
     <th
       onClick={() => handleSort(field)}
-      className="cursor-pointer px-5 py-3 text-left text-xs font-semibold text-gray-500 select-none hover:text-gray-700"
+      className="cursor-pointer px-5 py-3.5 text-left text-xs font-semibold text-gray-500 select-none hover:text-gray-700 transition"
     >
-      {label} {sortKey === field ? (sortAsc ? '↑' : '↓') : ''}
+      {label} {sortKey === field ? (sortAsc ? '\u2191' : '\u2193') : ''}
     </th>
   );
+
+  const SUMMARY = [
+    { label: 'Total Impressions', value: totalImpressions, gradient: 'from-blue-500 to-blue-600', shadow: 'shadow-blue-500/20' },
+    { label: 'Total Starts', value: totalStarts, gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
+    { label: 'Total Completions', value: totalCompletions, gradient: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/20' },
+    { label: 'Avg Completion Rate', value: `${avgRate}%`, gradient: 'from-brand-500 to-orange-500', shadow: 'shadow-brand-500/20' },
+  ];
 
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">Analytics</h1>
+        <h1 className="text-2xl font-black tracking-tight">Analytics</h1>
         <p className="mt-1 text-sm text-gray-500">
           Performance metrics across all walkthroughs
         </p>
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center text-sm text-gray-400">
-          Loading analytics...
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-gray-400">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            Loading analytics...
+          </div>
         </div>
       ) : (
-        <>
+        <div className="animate-slide-up">
           {/* Summary cards */}
           <div className="mb-8 grid grid-cols-4 gap-4">
-            <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
-              <p className="text-3xl font-extrabold text-blue-600">
-                {totalImpressions.toLocaleString()}
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">Total Impressions</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
-              <p className="text-3xl font-extrabold text-violet-600">
-                {totalStarts.toLocaleString()}
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">Total Starts</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
-              <p className="text-3xl font-extrabold text-emerald-600">
-                {totalCompletions.toLocaleString()}
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">Total Completions</p>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-5 text-center">
-              <p className="text-3xl font-extrabold text-brand-600">{avgRate}%</p>
-              <p className="mt-1 text-xs font-medium text-gray-500">Avg Completion Rate</p>
-            </div>
+            {SUMMARY.map((card) => (
+              <div
+                key={card.label}
+                className={cn(
+                  'relative overflow-hidden rounded-2xl p-5 text-center shadow-lg',
+                  `bg-gradient-to-br ${card.gradient} ${card.shadow}`
+                )}
+              >
+                <div className="absolute -right-3 -top-3 h-20 w-20 rounded-full bg-white/[0.08]" />
+                <p className="relative text-3xl font-black text-white">
+                  {typeof card.value === 'number' ? card.value.toLocaleString() : card.value}
+                </p>
+                <p className="relative mt-1 text-xs font-medium text-white/70">{card.label}</p>
+              </div>
+            ))}
           </div>
 
           {/* Top 5 chart */}
           {top5.length > 0 && (
-            <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6">
+            <div className="mb-8 glass-card rounded-2xl p-6">
               <h2 className="mb-4 text-sm font-bold">
                 Top Walkthroughs by Completion Rate
               </h2>
@@ -201,22 +204,28 @@ export default function AnalyticsPage() {
                     tick={{ fontSize: 12 }}
                   />
                   <Tooltip
-                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                    contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value: number) => [`${value}%`, 'Completion Rate']}
                   />
-                  <Bar dataKey="completionRate" fill="#E07A2F" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="completionRate" fill="url(#brandGradient)" radius={[0, 6, 6, 0]} />
+                  <defs>
+                    <linearGradient id="brandGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#E07A2F" />
+                      <stop offset="100%" stopColor="#FB923C" />
+                    </linearGradient>
+                  </defs>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           )}
 
           {/* Full table */}
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-hidden rounded-2xl border border-gray-200/60 bg-white/80 backdrop-blur-sm">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/50">
+                <tr className="border-b border-gray-100 bg-gray-50/80">
                   <SortHeader label="Walkthrough" field="title" />
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500">
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500">
                     Status
                   </th>
                   <SortHeader label="Impressions" field="impressions" />
@@ -229,9 +238,9 @@ export default function AnalyticsPage() {
                 {sorted.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-gray-50 transition hover:bg-gray-50"
+                    className="border-b border-gray-50 transition hover:bg-brand-50/30"
                   >
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <Link
                         href={`/analytics/${r.id}`}
                         className="text-sm font-semibold text-brand-600 hover:underline"
@@ -239,35 +248,33 @@ export default function AnalyticsPage() {
                         {r.title}
                       </Link>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <StatusBadge status={r.status} />
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-600">
+                    <td className="px-5 py-3.5 text-sm text-gray-600">
                       {r.impressions.toLocaleString()}
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-600">
+                    <td className="px-5 py-3.5 text-sm text-gray-600">
                       {r.starts.toLocaleString()}
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-600">
+                    <td className="px-5 py-3.5 text-sm text-gray-600">
                       {r.completions.toLocaleString()}
                     </td>
-                    <td className="px-5 py-3 text-sm font-semibold">{r.completionRate}%</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold">{r.completionRate}%</td>
                   </tr>
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="py-12 text-center text-sm text-gray-400"
-                    >
-                      No analytics data yet
+                    <td colSpan={6} className="py-12 text-center">
+                      <BarChart3 className="mx-auto mb-2 h-8 w-8 text-gray-200" />
+                      <p className="text-sm text-gray-400">No analytics data yet</p>
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

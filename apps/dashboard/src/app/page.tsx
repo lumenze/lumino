@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Route, CheckCircle, Eye, TrendingUp, HeartPulse } from 'lucide-react';
+import { Route, CheckCircle, Eye, TrendingUp, HeartPulse, ArrowRight, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
+import { cn } from '@/lib/utils';
 
 interface Walkthrough {
   id: string;
@@ -47,7 +48,6 @@ export default function OverviewPage() {
         const items = wtRes.data.items;
         setWalkthroughs(items);
 
-        // Fetch stats for each walkthrough
         const statsMap = new Map<string, WalkthroughStats>();
         await Promise.allSettled(
           items.map(async (wt) => {
@@ -63,7 +63,6 @@ export default function OverviewPage() {
         );
         setStats(statsMap);
 
-        // Fetch health
         try {
           const h = await api.get<{ data: HealthOverview }>(
             '/health/apps/novapay-dashboard'
@@ -82,7 +81,7 @@ export default function OverviewPage() {
   }, []);
 
   const totalWalkthroughs = walkthroughs.length;
-  const published = walkthroughs.filter((w) => w.status === 'published').length;
+  const published = walkthroughs.filter((w) => w.status.toLowerCase() === 'published').length;
   const totalCompletions = Array.from(stats.values()).reduce(
     (sum, s) => sum + s.completions,
     0
@@ -103,18 +102,24 @@ export default function OverviewPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">Overview</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-black tracking-tight">Welcome back</h1>
+          <Sparkles className="h-5 w-5 text-brand-500" />
+        </div>
         <p className="mt-1 text-sm text-gray-500">
-          Your Lumino platform at a glance
+          Here&apos;s what&apos;s happening with your Lumino platform today
         </p>
       </div>
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center text-sm text-gray-400">
-          Loading dashboard...
+        <div className="flex h-64 items-center justify-center">
+          <div className="flex items-center gap-3 text-sm text-gray-400">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            Loading dashboard...
+          </div>
         </div>
       ) : (
-        <>
+        <div className="animate-slide-up">
           {/* Stat Cards */}
           <div className="mb-8 grid grid-cols-4 gap-4">
             <StatCard
@@ -122,59 +127,66 @@ export default function OverviewPage() {
               value={totalWalkthroughs}
               icon={Route}
               subtitle="All statuses"
+              gradient="from-blue-600 to-blue-500"
             />
             <StatCard
               title="Published"
               value={published}
               icon={CheckCircle}
               subtitle="Live for customers"
+              gradient="from-emerald-600 to-emerald-500"
             />
             <StatCard
               title="Total Completions"
               value={totalCompletions}
               icon={Eye}
               subtitle="Across all walkthroughs"
+              gradient="from-violet-600 to-purple-500"
             />
             <StatCard
               title="Avg Completion Rate"
               value={`${avgRate}%`}
               icon={TrendingUp}
               subtitle="All published"
+              gradient="from-brand-500 to-orange-500"
             />
           </div>
 
           {/* Two-column grid */}
           <div className="grid grid-cols-2 gap-6">
             {/* Recent Walkthroughs */}
-            <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="glass-card rounded-2xl p-6">
+              <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-sm font-bold">Recent Walkthroughs</h2>
                 <Link
                   href="/walkthroughs"
-                  className="text-xs font-medium text-brand-500 hover:text-brand-600"
+                  className="flex items-center gap-1 text-xs font-semibold text-brand-500 transition hover:text-brand-600"
                 >
-                  View all →
+                  View all <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
               {recentWalkthroughs.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No walkthroughs yet. Record one in NovaPay!
-                </p>
+                <div className="flex flex-col items-center py-10">
+                  <Route className="mb-3 h-10 w-10 text-gray-200" />
+                  <p className="text-sm text-gray-400">
+                    No walkthroughs yet. Record one in NovaPay!
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {recentWalkthroughs.map((wt) => {
                     const def = wt.versions[0]?.definition;
                     return (
                       <Link
                         key={wt.id}
                         href={`/walkthroughs/${wt.id}`}
-                        className="flex items-center justify-between rounded-lg border border-gray-100 p-3 transition hover:bg-gray-50"
+                        className="group flex items-center justify-between rounded-xl border border-transparent p-3.5 transition-all duration-200 hover:border-gray-200 hover:bg-white hover:shadow-sm"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold">
+                          <p className="truncate text-sm font-semibold group-hover:text-brand-600 transition-colors">
                             {def?.title || 'Untitled'}
                           </p>
-                          <p className="mt-0.5 text-xs text-gray-400">
+                          <p className="mt-0.5 text-[11px] text-gray-400">
                             {def?.steps?.length ?? 0} steps ·{' '}
                             {new Date(wt.updatedAt).toLocaleDateString()}
                           </p>
@@ -188,62 +200,79 @@ export default function OverviewPage() {
             </div>
 
             {/* Health Overview */}
-            <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="glass-card rounded-2xl p-6">
+              <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-sm font-bold">Health Overview</h2>
                 <Link
                   href="/health"
-                  className="text-xs font-medium text-brand-500 hover:text-brand-600"
+                  className="flex items-center gap-1 text-xs font-semibold text-brand-500 transition hover:text-brand-600"
                 >
-                  Details →
+                  Details <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
               {health ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <HeartPulse className="h-10 w-10 text-brand-500" />
+                <div className="space-y-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-orange-500 shadow-lg shadow-brand-500/20">
+                      <HeartPulse className="h-7 w-7 text-white" />
+                    </div>
                     <div>
-                      <p className="text-2xl font-extrabold">
+                      <p className="text-3xl font-black tracking-tight">
                         {health.totalWalkthroughs}
                       </p>
                       <p className="text-xs text-gray-500">Monitored walkthroughs</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-emerald-50 p-3 text-center">
-                      <p className="text-lg font-bold text-emerald-700">
-                        {health.summary.healthy}
-                      </p>
-                      <p className="text-[10px] font-medium text-emerald-600">
-                        Healthy
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-amber-50 p-3 text-center">
-                      <p className="text-lg font-bold text-amber-700">
-                        {health.summary.warning}
-                      </p>
-                      <p className="text-[10px] font-medium text-amber-600">
-                        Warning
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-red-50 p-3 text-center">
-                      <p className="text-lg font-bold text-red-700">
-                        {health.summary.critical}
-                      </p>
-                      <p className="text-[10px] font-medium text-red-600">
-                        Critical
-                      </p>
-                    </div>
+                    {[
+                      { label: 'Healthy', count: health.summary.healthy, color: 'emerald' },
+                      { label: 'Warning', count: health.summary.warning, color: 'amber' },
+                      { label: 'Critical', count: health.summary.critical, color: 'red' },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className={cn(
+                          'relative overflow-hidden rounded-xl p-4 text-center',
+                          item.color === 'emerald' && 'bg-emerald-50',
+                          item.color === 'amber' && 'bg-amber-50',
+                          item.color === 'red' && 'bg-red-50'
+                        )}
+                      >
+                        <p
+                          className={cn(
+                            'text-2xl font-black',
+                            item.color === 'emerald' && 'text-emerald-700',
+                            item.color === 'amber' && 'text-amber-700',
+                            item.color === 'red' && 'text-red-700'
+                          )}
+                        >
+                          {item.count}
+                        </p>
+                        <p
+                          className={cn(
+                            'text-[10px] font-semibold',
+                            item.color === 'emerald' && 'text-emerald-600',
+                            item.color === 'amber' && 'text-amber-600',
+                            item.color === 'red' && 'text-red-600'
+                          )}
+                        >
+                          {item.label}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No health data available yet
-                </p>
+                <div className="flex flex-col items-center py-10">
+                  <HeartPulse className="mb-3 h-10 w-10 text-gray-200" />
+                  <p className="text-sm text-gray-400">
+                    No health data available yet
+                  </p>
+                </div>
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
