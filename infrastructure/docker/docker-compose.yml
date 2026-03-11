@@ -1,6 +1,13 @@
 # Lumino — Development Stack
 # Usage: docker compose up -d
 # All services + databases + reference apps
+#
+# Environment: Create a .env file in this directory with:
+#   POSTGRES_PASSWORD=lumino
+#   DATABASE_URL=postgresql://lumino:lumino@postgres:5432/lumino
+#   REDIS_URL=redis://redis:6379
+#   JWT_SECRET=your-secret-here
+#   AI_SERVICE_URL=http://ai-services:8000
 
 services:
   # ── Databases ────────────────────────────────────────────────────────
@@ -8,9 +15,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: lumino-postgres
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: lumino
-      POSTGRES_PASSWORD: lumino
       POSTGRES_DB: lumino
     ports:
       - "5432:5432"
@@ -47,12 +55,8 @@ services:
     env_file:
       - .env
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      PORT: ${PORT:-3000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://lumino:lumino@postgres:5432/lumino}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-services:8000}
+      NODE_ENV: development
+      PORT: 3000
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,10 +73,10 @@ services:
     container_name: lumino-ai
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       LUMINO_AI_AI_PROVIDER: cloud
-      LUMINO_AI_DATABASE_URL: postgresql://lumino:lumino@postgres:5432/lumino
-      LUMINO_AI_REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
