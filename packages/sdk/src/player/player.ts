@@ -3,6 +3,7 @@ import { TRANSITION_URL_PARAM } from '@lumino/shared';
 import type { ShadowDomManager } from '../core/shadow-dom';
 import type { ApiClient } from '../core/api-client';
 import type { StateManager } from '../core/state-manager';
+import type { AnalyticsTracker } from '../core/analytics';
 import { EventBus, LuminoEvent } from '../core/event-bus';
 import { DomObserver } from '../observers/dom-observer';
 import { makeDraggable } from '../utils/draggable';
@@ -14,6 +15,7 @@ interface PlayerDeps {
   apiClient: ApiClient;
   stateManager: StateManager;
   eventBus: EventBus;
+  analytics?: AnalyticsTracker;
 }
 
 /**
@@ -68,6 +70,12 @@ export class WalkthroughPlayer {
     this.domObserver.start();
 
     this.deps.eventBus.emit(LuminoEvent.WalkthroughStarted, { walkthroughId });
+    this.deps.analytics?.track({
+      type: 'walkthrough_started',
+      walkthroughId,
+      walkthroughVersion: wt.version,
+      pageUrl: window.location.href,
+    });
     this.showCurrentStep();
   }
 
@@ -627,6 +635,12 @@ export class WalkthroughPlayer {
 
     this.deps.eventBus.emit(LuminoEvent.WalkthroughCompleted, {
       walkthroughId: active.walkthroughId,
+    });
+    this.deps.analytics?.track({
+      type: 'walkthrough_completed',
+      walkthroughId: active.walkthroughId,
+      walkthroughVersion: active.version,
+      pageUrl: window.location.href,
     });
   }
 

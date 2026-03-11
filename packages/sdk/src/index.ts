@@ -24,6 +24,7 @@ import { NotificationEngine } from './notifications/engine';
 import { EventBus, LuminoEvent } from './core/event-bus';
 import { Logger } from './utils/logger';
 import { CommandPalette } from './search/command-palette';
+import { AnalyticsTracker } from './core/analytics';
 import { makeDraggable } from './utils/draggable';
 import { escapeHtml } from './utils/escape-html';
 
@@ -151,6 +152,7 @@ export class Lumino {
   private recorder: WalkthroughRecorder | null = null;
   private notifications!: NotificationEngine;
   private commandPalette: CommandPalette | null = null;
+  private analytics!: AnalyticsTracker;
 
   private constructor() {}
 
@@ -239,8 +241,10 @@ export class Lumino {
     await this.authManager.authenticate();
     this.apiClient.setAuthToken(this.authManager.getToken());
 
-    // 4. State
+    // 4. State & Analytics
     this.stateManager = new StateManager(this.apiClient);
+    this.analytics = new AnalyticsTracker(this.apiClient);
+    this.analytics.setUserId(this.authManager.getUserId());
 
     // 5. Observers
     this.domObserver = new DomObserver(this.eventBus);
@@ -254,6 +258,7 @@ export class Lumino {
       apiClient: this.apiClient,
       stateManager: this.stateManager,
       eventBus: this.eventBus,
+      analytics: this.analytics,
     });
 
     // 7. Notifications
