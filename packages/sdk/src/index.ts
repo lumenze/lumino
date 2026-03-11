@@ -153,6 +153,7 @@ export class Lumino {
   private notifications!: NotificationEngine;
   private commandPalette: CommandPalette | null = null;
   private analytics!: AnalyticsTracker;
+  private fabEl: HTMLElement | null = null;
 
   private constructor() {}
 
@@ -397,6 +398,7 @@ export class Lumino {
     fab.innerHTML = '<span class="lm-rec-dot"></span> Record Guide';
     container.appendChild(fab);
     makeDraggable(fab, fab);
+    this.fabEl = fab;
 
     let capturedSteps: WalkthroughStep[] = [];
 
@@ -601,6 +603,30 @@ export class Lumino {
     return this.recorder?.stopRecording() ?? [];
   }
 
+  /** Resume recording with previously captured steps (for cross-page recording) */
+  resumeRecording(steps: WalkthroughStep[]): void {
+    if (!this.recorder) {
+      this.logger.warn('Recording not available for this role');
+      return;
+    }
+    // Hide FAB while recording
+    if (this.fabEl) this.fabEl.style.display = 'none';
+
+    this.recorder.resumeRecording(this.config.appId, steps);
+
+    // Wire up save dialog when recording stops
+    const handler = () => {
+      const capturedSteps = this.recorder?.getSteps() ?? [];
+      this.eventBus.off(LuminoEvent.RecordingStopped, handler);
+      if (capturedSteps.length === 0) {
+        if (this.fabEl) this.fabEl.style.display = '';
+        return;
+      }
+      this.showSaveDialog(capturedSteps, this.fabEl!);
+    };
+    this.eventBus.on(LuminoEvent.RecordingStopped, handler);
+  }
+
   /** Search walkthroughs by natural language (host chatbot integration) */
   async searchWalkthroughs(query: string) {
     return this.apiClient.post<{ items: Array<{
@@ -619,6 +645,14 @@ export class Lumino {
   async saveRecording(title: string, description: string) {
     if (!this.recorder) throw new Error('Recording not available');
     return this.recorder.saveWalkthrough(title, description);
+  }
+
+  /** Get current recording state (for cross-page persistence by Chrome extension) */
+  getRecordingState(): { recording: boolean; steps: WalkthroughStep[] } {
+    return {
+      recording: this.recorder?.isRecording() ?? false,
+      steps: this.recorder?.getSteps() ?? [],
+    };
   }
 
   /** Subscribe to SDK events */

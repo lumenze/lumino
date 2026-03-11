@@ -251,7 +251,9 @@ window.addEventListener('lumino:error', (e) => {
 });
 ```
 
-## 7. User Roles
+## 7. User Roles & Mapping
+
+### Lumino Roles
 
 | Role       | Capabilities                                    |
 |------------|------------------------------------------------|
@@ -260,6 +262,146 @@ window.addEventListener('lumino:error', (e) => {
 | `admin`    | All author capabilities + manage settings       |
 
 The role is determined by the `role` field in the JWT payload returned by your token endpoint.
+
+### How to Map Your Users to Lumino Roles
+
+Your application likely doesn't have a concept of "walkthrough author" today — that's expected. You need to decide which of your existing users should be able to **create and manage walkthroughs** (authors) vs **consume them** (customers). Here are the recommended approaches:
+
+#### Option A: Map from an existing permission or role (Recommended)
+
+If your app already has roles like `admin`, `manager`, `support`, etc., map the appropriate ones to Lumino's `author` role. Everyone else becomes `customer`.
+
+```js
+// Your token endpoint
+app.get('/api/lumino-token', (req, res) => {
+  const user = req.user; // from your auth middleware
+
+  // Map your existing roles → Lumino roles
+  let luminoRole = 'customer'; // default: all users are customers
+
+  // Product managers, support leads, L&D team → can author walkthroughs
+  if (['admin', 'product_manager', 'support_lead', 'trainer'].includes(user.role)) {
+    luminoRole = 'author';
+  }
+
+  // Your super-admins → Lumino admin (can manage all settings)
+  if (user.role === 'super_admin') {
+    luminoRole = 'admin';
+  }
+
+  const token = signLuminoJwt({
+    sub: user.id,
+    role: luminoRole,
+    locale: user.locale || 'en-US',
+  });
+
+  res.json({ token });
+});
+```
+
+#### Option B: Add a Lumino-specific permission flag
+
+Add a simple boolean flag to your user model (e.g., `canAuthorWalkthroughs`). This is useful when authoring ability doesn't map cleanly to existing roles — for example, a specific customer success person who isn't an admin but should create walkthroughs.
+
+```js
+// Your token endpoint
+app.get('/api/lumino-token', (req, res) => {
+  const user = req.user;
+
+  let luminoRole = 'customer';
+  if (user.canAuthorWalkthroughs) luminoRole = 'author';
+  if (user.isSuperAdmin)         luminoRole = 'admin';
+
+  const token = signLuminoJwt({
+    sub: user.id,
+    role: luminoRole,
+    locale: user.locale || 'en-US',
+  });
+
+  res.json({ token });
+});
+```
+
+Database migration example (PostgreSQL):
+```sql
+ALTER TABLE users ADD COLUMN can_author_walkthroughs BOOLEAN DEFAULT FALSE;
+
+-- Grant authoring to your product team
+UPDATE users SET can_author_walkthroughs = TRUE
+WHERE role IN ('product_manager', 'support_lead');
+```
+
+#### Option C: Use a group / team membership
+
+If your app has teams or groups, designate a "Lumino Authors" group. Anyone in the group gets the `author` role.
+
+```js
+// Your token endpoint
+app.get('/api/lumino-token', async (req, res) => {
+  const user = req.user;
+  const userGroups = await getGroupsForUser(user.id);
+
+  let luminoRole = 'customer';
+  if (userGroups.includes('lumino-authors'))  luminoRole = 'author';
+  if (userGroups.includes('lumino-admins'))   luminoRole = 'admin';
+
+  const token = signLuminoJwt({
+    sub: user.id,
+    role: luminoRole,
+    locale: user.locale || 'en-US',
+  });
+
+  res.json({ token });
+});
+```
+
+#### Option D: External identity provider claim (SSO / OIDC)
+
+If you use an IdP (Okta, Auth0, Azure AD), add a custom claim or app role in your IdP and read it during token generation.
+
+```js
+// Your token endpoint (reading from IdP token)
+app.get('/api/lumino-token', (req, res) => {
+  const idpToken = decodeIdpToken(req); // your IdP's access/ID token
+
+  // Custom claim set in Okta/Auth0/Azure AD admin console
+  const luminoRole = idpToken['lumino_role'] || 'customer';
+
+  const token = signLuminoJwt({
+    sub: idpToken.sub,
+    role: luminoRole,
+    locale: idpToken.locale || 'en-US',
+  });
+
+  res.json({ token });
+});
+```
+
+IdP setup example (Okta):
+1. Go to **Applications → Your App → Sign On → OpenID Connect ID Token**
+2. Add a custom claim: `lumino_role`
+3. Value: `String.substringAfter(user.groups, "lumino-")` or a static mapping
+4. Assign users to a "lumino-authors" group in your directory
+
+### Who Should Be an Author?
+
+A typical mapping for enterprise customers:
+
+| Your Role | Lumino Role | Rationale |
+|-----------|-------------|-----------|
+| Product managers | `author` | Own the product experience, create onboarding flows |
+| Customer success / support leads | `author` | Create help walkthroughs for common issues |
+| L&D / Training team | `author` | Build training content for internal tools |
+| Engineering team leads | `author` | Document internal tool workflows |
+| Super admins | `admin` | Manage Lumino settings, view all analytics |
+| Everyone else | `customer` | Consume walkthroughs, trigger contextual help |
+
+### Important Notes
+
+- **Start small**: Begin with 2-3 authors. You can always grant more later.
+- **No code change needed to add authors**: Just update the user's role/flag/group in your existing system — the token endpoint picks it up automatically.
+- **Authors see the same app as customers** plus a floating action button (FAB) to start recording. There's no separate "admin panel" to navigate to for authoring.
+- **Role changes take effect on next page load**: When the SDK re-authenticates, it fetches a fresh token with the updated role.
 
 ## Troubleshooting
 

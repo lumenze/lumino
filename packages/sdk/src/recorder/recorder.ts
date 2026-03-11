@@ -106,6 +106,29 @@ export class WalkthroughRecorder {
     return this.steps.pop();
   }
 
+  /**
+   * Resume recording with previously captured steps.
+   * Used by the Chrome extension to persist recording across page navigations.
+   */
+  resumeRecording(appId: string, existingSteps: WalkthroughStep[]): void {
+    if (this.recording) return;
+
+    this.appId = appId;
+    this.recording = true;
+    this.steps = [...existingSteps];
+
+    this.createRecordingUI();
+    this.attachListeners();
+    this.updateToolbarCount();
+
+    // Rebuild step cards in the preview panel
+    for (const step of this.steps) {
+      this.addStepCard(step);
+    }
+
+    this.deps.eventBus.emit(LuminoEvent.RecordingStarted);
+  }
+
   // ── Capture ───────────────────────────────────────────────────────
 
   private captureStep(el: HTMLElement, actionType: ActionType): void {
