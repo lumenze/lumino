@@ -58,7 +58,23 @@ export class WalkthroughPlayer {
 
     // Check for existing progress to resume
     const progress = this.deps.stateManager.getProgress(walkthroughId);
-    const startIndex = progress && !progress.completed ? progress.currentStepOrder : 0;
+    let startIndex = progress && !progress.completed ? progress.currentStepOrder : 0;
+
+    // Check sessionStorage for a more recent step (survives page navigation
+    // even when the async server sync didn't complete before unload)
+    try {
+      const savedState = sessionStorage.getItem('__lumino_playback_state__');
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        if (parsed.walkthroughId === walkthroughId && parsed.stepIndex > startIndex) {
+          startIndex = parsed.stepIndex;
+          this.logger.debug(`Resuming from sessionStorage step ${startIndex}`);
+        }
+        sessionStorage.removeItem('__lumino_playback_state__');
+      }
+    } catch {
+      // sessionStorage may be unavailable
+    }
 
     this.logger.debug(`Starting walkthrough ${walkthroughId} at step ${startIndex}`);
 
@@ -214,9 +230,14 @@ export class WalkthroughPlayer {
     if (actionType === 'click' || actionType === 'navigate') {
       const handler = () => {
         targetEl.removeEventListener('click', handler);
-        // Small delay to let navigation happen if needed
-        const delay = step.triggersNavigation ? 500 : 100;
-        setTimeout(() => this.advanceToNextStep(), delay);
+
+        if (step.triggersNavigation) {
+          // For navigation steps, advance immediately and sync before the page unloads.
+          // The browser may navigate before a setTimeout fires, losing the progress.
+          this.advanceToNextStep();
+        } else {
+          setTimeout(() => this.advanceToNextStep(), 100);
+        }
       };
       targetEl.addEventListener('click', handler);
       this.cleanupListeners.push(() => targetEl.removeEventListener('click', handler));
@@ -328,6 +349,21 @@ export class WalkthroughPlayer {
 
     const hasNext = this.deps.stateManager.advanceStep();
     if (hasNext) {
+      // Persist the new step index to sessionStorage so it survives page navigation.
+      // The server sync (in showCurrentStep/renderStep) is async and may not complete
+      // before a full page navigation triggered by the user's click.
+      const active = this.deps.stateManager.getActive();
+      if (active) {
+        try {
+          sessionStorage.setItem('__lumino_playback_state__', JSON.stringify({
+            walkthroughId: active.walkthroughId,
+            stepIndex: active.stepIndex,
+            version: active.version,
+          }));
+        } catch {
+          // sessionStorage may be unavailable
+        }
+      }
       this.showCurrentStep();
     } else {
       this.showCompletion();
