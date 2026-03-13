@@ -552,7 +552,12 @@ export class Lumino {
         const highlightBtn = badge.querySelector('.lm-step-highlight-btn') as HTMLButtonElement;
         highlightBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          const el = document.querySelector(step.selector.primary) as HTMLElement | null;
+          let el: HTMLElement | null = null;
+          try {
+            el = document.querySelector(step.selector.primary) as HTMLElement | null;
+          } catch {
+            el = null;
+          }
           if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             const prev = el.style.outline;
