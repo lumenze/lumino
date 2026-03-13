@@ -384,8 +384,20 @@ export class WalkthroughRecorder {
     // Step preview panel
     this.stepListEl = document.createElement('div');
     this.stepListEl.className = 'lm-rec-steps';
+    this.stepListEl.innerHTML = `
+      <button class="lm-rec-toggle" id="lm-rec-toggle" title="Collapse/Expand">&#9660;</button>
+      <div class="lm-rec-steps-title">Captured Steps</div>
+    `;
     root.appendChild(this.stepListEl);
     makeDraggable(this.stepListEl, this.stepListEl);
+
+    // Toggle collapse
+    const toggleBtn = this.stepListEl.querySelector('#lm-rec-toggle');
+    toggleBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const collapsed = this.stepListEl!.classList.toggle('lm-collapsed');
+      (toggleBtn as HTMLElement).innerHTML = collapsed ? '&#9650;' : '&#9660;';
+    });
 
     // Wire toolbar buttons
     const stopBtn = this.toolbarEl.querySelector('#lm-rec-stop');
@@ -606,7 +618,7 @@ const RECORDER_CSS = `
   }
 
   .lm-rec-steps {
-    position: fixed; top: 56px; right: 16px; width: 260px; max-height: 300px;
+    position: fixed; bottom: 16px; left: 16px; width: 240px; max-height: 220px;
     overflow-y: auto; z-index: 100005; pointer-events: auto;
     background: rgba(30,30,54,0.9); backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -614,8 +626,22 @@ const RECORDER_CSS = `
     box-shadow: 0 12px 40px rgba(0,0,0,0.3);
     border: 1px solid rgba(255,255,255,0.06);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
   }
   .lm-rec-steps { cursor: move; user-select: none; }
+  .lm-rec-steps.lm-collapsed { max-height: 32px; overflow: hidden; padding: 6px 10px; }
+  .lm-rec-toggle {
+    position: absolute; top: 6px; right: 8px; background: none; border: none;
+    color: rgba(255,255,255,0.4); font-size: 14px; cursor: pointer; padding: 2px 4px;
+    z-index: 1; line-height: 1;
+  }
+  .lm-rec-toggle:hover { color: rgba(255,255,255,0.7); }
+  .lm-rec-steps-title {
+    font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .lm-collapsed .lm-rec-step-card { display: none; }
+  .lm-collapsed .lm-rec-steps-title { margin-bottom: 0; }
   .lm-rec-steps::-webkit-scrollbar { width: 4px; }
   .lm-rec-steps::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
