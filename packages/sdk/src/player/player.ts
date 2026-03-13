@@ -166,17 +166,27 @@ export class WalkthroughPlayer {
     const el = this.domObserver.findElement(step.selector);
     if (!el) {
       this.logger.debug(`Element not found for ${step.selector.primary} — waiting...`);
-      // Element not found — wait for it
+      // Element not found — wait for it, auto-skip after timeout
+      let found = false;
       const cancel = this.domObserver.waitForElement(
         step.id,
         step.selector,
         (foundEl) => {
+          found = true;
           this.logger.debug('Element found after wait');
           this.renderStep(step, foundEl, active.stepIndex, active.totalSteps);
         },
-        15000,
+        10000,
       );
-      this.cleanupListeners.push(cancel);
+      // If not found after timeout, auto-skip to next step
+      const skipTimer = setTimeout(() => {
+        if (!found) {
+          this.logger.warn(`Element not found for step "${step.title}" — auto-skipping`);
+          cancel();
+          this.advanceToNextStep();
+        }
+      }, 10500);
+      this.cleanupListeners.push(() => { cancel(); clearTimeout(skipTimer); });
       return;
     }
 
@@ -274,13 +284,21 @@ export class WalkthroughPlayer {
       this.cleanupListeners.push(cleanup);
 
     } else if (actionType === 'select') {
-      const selectEl = targetEl as HTMLSelectElement;
-      const handler = () => {
+      const selectEl = targetEl as HTMLElement;
+      let advanced = false;
+      const advance = () => {
+        if (advanced) return;
+        advanced = true;
         setTimeout(() => this.advanceToNextStep(), 300);
-        selectEl.removeEventListener('change', handler);
       };
-      selectEl.addEventListener('change', handler);
-      this.cleanupListeners.push(() => selectEl.removeEventListener('change', handler));
+      // Native <select> fires 'change'
+      selectEl.addEventListener('change', advance);
+      // Custom dropdowns use click
+      selectEl.addEventListener('click', advance);
+      this.cleanupListeners.push(() => {
+        selectEl.removeEventListener('change', advance);
+        selectEl.removeEventListener('click', advance);
+      });
 
     } else if (actionType === 'hover') {
       const handler = () => {
