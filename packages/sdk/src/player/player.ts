@@ -9,6 +9,7 @@ import { DomObserver } from '../observers/dom-observer';
 import { makeDraggable } from '../utils/draggable';
 import { escapeHtml } from '../utils/escape-html';
 import { Logger } from '../utils/logger';
+import { DebugLogger } from '../utils/debug-logger';
 
 interface PlayerDeps {
   shadowDom: ShadowDomManager;
@@ -29,6 +30,7 @@ export class WalkthroughPlayer {
   private deps: PlayerDeps;
   private domObserver: DomObserver;
   private logger = new Logger('Player');
+  private dbg = DebugLogger.getInstance();
   private playing = false;
 
   // DOM elements (inside shadow DOM)
@@ -146,10 +148,20 @@ export class WalkthroughPlayer {
 
     const step = active.step;
     this.logger.debug(`Showing step ${active.stepIndex} "${step.title}" selector: ${step.selector.primary}`);
+    this.dbg.log('info', 'player', `Step ${active.stepIndex + 1}/${active.totalSteps}: "${step.title}"`, {
+      stepId: step.id,
+      actionType: step.actionType,
+      selector: step.selector.primary,
+      fallbacks: step.selector.fallbacks,
+      textContent: step.selector.textContent?.slice(0, 50),
+      expectedUrl: step.expectedUrl,
+      currentUrl: window.location.pathname,
+      triggersNavigation: step.triggersNavigation,
+    });
 
     // If the step expects a different URL, navigate there first
     if (step.expectedUrl && !window.location.pathname.startsWith(step.expectedUrl)) {
-      this.logger.debug(`Navigating to ${step.expectedUrl} for step "${step.title}"`);
+      this.dbg.log('info', 'player', `Navigating to ${step.expectedUrl} for step "${step.title}"`);
       this.deps.stateManager.syncProgress({
         walkthroughId: active.walkthroughId,
         version: active.version,
@@ -158,14 +170,19 @@ export class WalkthroughPlayer {
         completed: false,
       });
       window.location.href = step.expectedUrl;
-      // After navigation, the SDK will re-init and resume from progress
       return;
     }
 
     // Find the target element
     const el = this.domObserver.findElement(step.selector);
     if (!el) {
-      this.logger.debug(`Element not found for ${step.selector.primary} — waiting...`);
+      this.dbg.log('warn', 'player', `Element not found — waiting 10s`, {
+        primary: step.selector.primary,
+        fallbacks: step.selector.fallbacks,
+        textContent: step.selector.textContent?.slice(0, 50),
+        ariaLabel: step.selector.ariaLabel,
+        domPath: step.selector.domPath,
+      });
       // Element not found — wait for it, auto-skip after timeout
       let found = false;
       const cancel = this.domObserver.waitForElement(
@@ -173,7 +190,11 @@ export class WalkthroughPlayer {
         step.selector,
         (foundEl) => {
           found = true;
-          this.logger.debug('Element found after wait');
+          this.dbg.log('info', 'player', 'Element found after wait', {
+            tag: (foundEl as HTMLElement).tagName,
+            id: (foundEl as HTMLElement).id,
+            text: (foundEl as HTMLElement).textContent?.slice(0, 50),
+          });
           this.renderStep(step, foundEl, active.stepIndex, active.totalSteps);
         },
         10000,
@@ -181,7 +202,9 @@ export class WalkthroughPlayer {
       // If not found after timeout, auto-skip to next step
       const skipTimer = setTimeout(() => {
         if (!found) {
-          this.logger.warn(`Element not found for step "${step.title}" — auto-skipping`);
+          this.dbg.log('error', 'player', `Element not found after 10s — auto-skipping step "${step.title}"`, {
+            selector: step.selector,
+          });
           cancel();
           this.advanceToNextStep();
         }
@@ -196,6 +219,16 @@ export class WalkthroughPlayer {
 
   private renderStep(step: WalkthroughStep, targetEl: Element, stepIndex: number, totalSteps: number): void {
     this.currentTargetEl = targetEl;
+    const rect = targetEl.getBoundingClientRect();
+    this.dbg.log('info', 'player', `Rendering step ${stepIndex + 1}: element found`, {
+      tag: (targetEl as HTMLElement).tagName,
+      id: (targetEl as HTMLElement).id,
+      classes: (targetEl as HTMLElement).className?.toString().slice(0, 80),
+      text: (targetEl as HTMLElement).textContent?.slice(0, 50),
+      rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) },
+      actionType: step.actionType,
+      visible: rect.width > 0 && rect.height > 0,
+    });
 
     // Show overlay
     this.showOverlay();
@@ -236,14 +269,30 @@ export class WalkthroughPlayer {
 
   private setupActionGating(step: WalkthroughStep, targetEl: Element): void {
     const actionType = step.actionType as ActionType;
+    this.dbg.log('debug', 'player', `Action gating: waiting for "${actionType}" on element`, {
+      tag: (targetEl as HTMLElement).tagName,
+      id: (targetEl as HTMLElement).id,
+      triggersNavigation: step.triggersNavigation,
+    });
+
+    // Heartbeat: log every 5s while waiting so we can see how long it was stuck
+    let gatingDone = false;
+    const heartbeat = setInterval(() => {
+      if (gatingDone) { clearInterval(heartbeat); return; }
+      this.dbg.log('warn', 'player', `Still waiting for "${actionType}" on step "${step.title}"`, {
+        waitingSince: Date.now(),
+        elementStillInDom: document.body.contains(targetEl),
+        elementVisible: (targetEl as HTMLElement).offsetWidth > 0,
+      });
+    }, 5000);
+    this.cleanupListeners.push(() => { gatingDone = true; clearInterval(heartbeat); });
 
     if (actionType === 'click' || actionType === 'navigate') {
       const handler = () => {
         targetEl.removeEventListener('click', handler);
+        this.dbg.log('info', 'player', `Click detected — advancing (triggersNavigation: ${step.triggersNavigation})`);
 
         if (step.triggersNavigation) {
-          // For navigation steps, advance immediately and sync before the page unloads.
-          // The browser may navigate before a setTimeout fires, losing the progress.
           this.advanceToNextStep();
         } else {
           setTimeout(() => this.advanceToNextStep(), 100);
@@ -289,6 +338,7 @@ export class WalkthroughPlayer {
       const advance = () => {
         if (advanced) return;
         advanced = true;
+        this.dbg.log('info', 'player', 'Select/click detected — advancing');
         setTimeout(() => this.advanceToNextStep(), 300);
       };
       // Native <select> fires 'change'

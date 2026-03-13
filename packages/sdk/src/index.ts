@@ -27,6 +27,7 @@ import { CommandPalette } from './search/command-palette';
 import { AnalyticsTracker } from './core/analytics';
 import { makeDraggable } from './utils/draggable';
 import { escapeHtml } from './utils/escape-html';
+import { DebugLogger } from './utils/debug-logger';
 
 type LuminoScriptConfig = {
   appId: string;
@@ -140,6 +141,7 @@ export class Lumino {
 
   private readonly eventBus = new EventBus();
   private readonly logger = new Logger('Lumino');
+  private readonly debugLogger = DebugLogger.getInstance();
 
   private config!: LuminoInitConfig;
   private shadowDom!: ShadowDomManager;
@@ -227,9 +229,21 @@ export class Lumino {
     this.config = config;
     this.logger.setDebug(config.debug ?? false);
 
+    // Enable debug logger when debug mode is on
+    if (config.debug) {
+      this.debugLogger.enable();
+    }
+    this.debugLogger.log('info', 'init', 'Bootstrap started', {
+      appId: config.appId,
+      apiUrl: config.apiUrl,
+      environment: config.environment,
+      url: window.location.href,
+    });
+
     // 1. Shadow DOM
     this.shadowDom = new ShadowDomManager(SHADOW_HOST_ID);
     this.shadowDom.create();
+    this.debugLogger.log('debug', 'init', 'Shadow DOM created');
 
     // 2. API client
     this.apiClient = new ApiClient({
@@ -241,6 +255,11 @@ export class Lumino {
     this.authManager = new AuthManager(config.auth);
     await this.authManager.authenticate();
     this.apiClient.setAuthToken(this.authManager.getToken());
+    this.debugLogger.log('info', 'auth', 'Authenticated', {
+      userId: this.authManager.getUserId(),
+      role: this.authManager.getRole(),
+      tokenLength: this.authManager.getToken().length,
+    });
 
     // 4. State & Analytics
     this.stateManager = new StateManager(this.apiClient);
@@ -324,7 +343,13 @@ export class Lumino {
       await this.loadAndNotify();
     }
 
+    // 11. Debug UI (when debug mode is enabled)
+    if (config.debug) {
+      this.createDebugButton();
+    }
+
     this.initialized = true;
+    this.debugLogger.log('info', 'init', 'Bootstrap complete', { version: SDK_VERSION });
     this.eventBus.emit(LuminoEvent.Initialized, { version: SDK_VERSION });
   }
 
@@ -333,20 +358,29 @@ export class Lumino {
       await this.stateManager.loadPublishedWalkthroughs(this.config.appId);
       await this.stateManager.loadProgress();
 
+      const all = this.stateManager.getAllWalkthroughs();
+      this.debugLogger.log('info', 'walkthroughs', `Loaded ${all.length} published walkthroughs`, {
+        walkthroughs: all.map(wt => ({ id: wt.id, title: wt.definition.title, steps: wt.definition.steps.length })),
+      });
+
       const inProgressWalkthroughId = this.stateManager.getInProgressWalkthroughId();
       if (inProgressWalkthroughId) {
+        this.debugLogger.log('info', 'walkthroughs', `Resuming in-progress walkthrough: ${inProgressWalkthroughId}`);
         this.notifications.pause();
         await this.player.startWalkthrough(inProgressWalkthroughId);
         return;
       }
 
       // Show notifications for walkthroughs the user hasn't completed
-      for (const wt of this.stateManager.getAllWalkthroughs()) {
+      for (const wt of all) {
         if (!this.stateManager.isCompleted(wt.id)) {
           this.notifications.enqueue(wt.id, wt.definition);
         }
       }
     } catch (err) {
+      this.debugLogger.log('error', 'walkthroughs', 'Failed to load walkthroughs', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       this.logger.warn('Failed to load walkthroughs', err);
     }
   }
@@ -385,6 +419,31 @@ export class Lumino {
       this.logger.warn('Failed to resume transition', err);
       return false;
     }
+  }
+
+  // ── Debug Button ────────────────────────────────────────────────
+
+  private createDebugButton(): void {
+    this.shadowDom.appendStyles(DEBUG_BTN_CSS);
+    const container = this.shadowDom.getContainer('debug-btn');
+
+    const btn = document.createElement('button');
+    btn.className = 'lm-debug-btn';
+    btn.title = 'Download Lumino Debug Report';
+    btn.textContent = 'Debug Log';
+    container.appendChild(btn);
+
+    btn.addEventListener('click', () => {
+      this.debugLogger.downloadReport();
+    });
+
+    // Keyboard shortcut: Ctrl+Shift+L
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        this.debugLogger.downloadReport();
+      }
+    });
   }
 
   // ── Author FAB ──────────────────────────────────────────────────
@@ -665,7 +724,42 @@ export class Lumino {
     this.eventBus.off(event, handler);
   }
 
+  /** Enable debug logging (captures all SDK events for diagnostics) */
+  enableDebug(): void {
+    this.debugLogger.enable();
+  }
+
+  /** Export debug report as JSON string */
+  getDebugReport(): string {
+    return this.debugLogger.export();
+  }
+
+  /** Download debug report as a JSON file */
+  downloadDebugReport(): void {
+    this.debugLogger.downloadReport();
+  }
+
 }
+
+// ── Debug Button CSS ─────────────────────────────────────────────────────
+
+const DEBUG_BTN_CSS = `
+  .lm-debug-btn {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 99999; pointer-events: auto;
+    padding: 6px 14px; border-radius: 20px; border: none;
+    background: rgba(30,30,54,0.85); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255,255,255,0.5); font-size: 11px; font-weight: 600;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .lm-debug-btn:hover {
+    color: #E07A2F; background: rgba(30,30,54,0.95);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3), 0 0 0 1px rgba(224,122,47,0.3);
+  }
+`;
 
 // ── Author FAB CSS ──────────────────────────────────────────────────────
 
