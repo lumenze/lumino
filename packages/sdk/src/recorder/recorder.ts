@@ -155,6 +155,15 @@ export class WalkthroughRecorder {
     this.updateToolbarCount();
     this.flashCapture(el);
     this.addStepCard(step);
+
+    // If this step triggers navigation, flush recording state to sessionStorage
+    // immediately — the polling interval may not fire before the page unloads.
+    if (step.triggersNavigation) {
+      try {
+        sessionStorage.setItem('__lumino_recording_steps__', JSON.stringify(this.steps));
+        sessionStorage.setItem('__lumino_recording_active__', 'true');
+      } catch { /* sessionStorage may be unavailable */ }
+    }
   }
 
   /**

@@ -161,6 +161,21 @@ async function injectSdk(tabId, sdkCode, config) {
         } catch(e) {}
       }, 500);
 
+      // ── Flush recording state on page unload ───────────────────
+      // The interval polls every 500ms, but navigations can happen
+      // between ticks.  beforeunload + synchronous sessionStorage
+      // guarantees we never lose steps.
+      window.addEventListener('beforeunload', function() {
+        try {
+          if (!sdk || !sdk.getRecordingState) return;
+          var state = sdk.getRecordingState();
+          if (state.recording && state.steps.length > 0) {
+            sessionStorage.setItem('__lumino_recording_steps__', JSON.stringify(state.steps));
+            sessionStorage.setItem('__lumino_recording_active__', 'true');
+          }
+        } catch(e) {}
+      });
+
       console.log('%c[Lumino Demo] SDK initialized as ' + cfg.role, 'color: #e07a2f; font-weight: bold; font-size: 14px;');
     } else {
       console.error('[Lumino Demo] Lumino class not found. window.LuminoSDK =', mod);
