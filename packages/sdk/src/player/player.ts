@@ -19,6 +19,11 @@ interface PlayerDeps {
   analytics?: AnalyticsTracker;
 }
 
+type AdvanceContext = {
+  autoSkippedMissingElement?: boolean;
+  missingStep?: WalkthroughStep;
+};
+
 /**
  * WalkthroughPlayer
  *
@@ -221,7 +226,10 @@ export class WalkthroughPlayer {
             selector: step.selector,
           });
           cancel();
-          this.advanceToNextStep();
+          this.advanceToNextStep({
+            autoSkippedMissingElement: true,
+            missingStep: step,
+          });
         }
       }, 10500);
       this.cleanupListeners.push(() => { cancel(); clearTimeout(skipTimer); });
@@ -469,7 +477,7 @@ export class WalkthroughPlayer {
     }
   }
 
-  private advanceToNextStep(): void {
+  private advanceToNextStep(context?: AdvanceContext): void {
     if (!this.playing) return;
 
     this.deps.eventBus.emit(LuminoEvent.StepAdvanced, this.deps.stateManager.getActive());
@@ -493,8 +501,56 @@ export class WalkthroughPlayer {
       }
       this.showCurrentStep();
     } else {
-      this.showCompletion();
+      if (context?.autoSkippedMissingElement) {
+        this.handleBlockedCompletion(context.missingStep);
+      } else {
+        this.showCompletion();
+      }
     }
+  }
+
+  private handleBlockedCompletion(missingStep?: WalkthroughStep): void {
+    const active = this.deps.stateManager.getActive();
+    if (!active) return;
+
+    const step = missingStep ?? active.step ?? undefined;
+    if (step) {
+      this.deps.stateManager.syncProgress({
+        walkthroughId: active.walkthroughId,
+        version: active.version,
+        stepId: step.id,
+        stepOrder: active.stepIndex,
+        completed: false,
+      });
+    }
+
+    this.dbg.log('error', 'player', 'Walkthrough blocked: final step missing after wait timeout', {
+      walkthroughId: active.walkthroughId,
+      stepId: step?.id,
+      selector: step?.selector?.primary,
+      url: window.location.href,
+      status: 'blocked_prerequisite_missing',
+    });
+
+    this.deps.eventBus.emit(LuminoEvent.WalkthroughAbandoned, {
+      walkthroughId: active.walkthroughId,
+      atStep: active.stepIndex,
+      reason: 'blocked_prerequisite_missing',
+      selector: step?.selector?.primary,
+    });
+    this.deps.analytics?.track({
+      type: 'walkthrough_abandoned',
+      walkthroughId: active.walkthroughId,
+      walkthroughVersion: active.version,
+      stepId: step?.id,
+      pageUrl: window.location.href,
+      metadata: {
+        reason: 'blocked_prerequisite_missing',
+        selector: step?.selector?.primary,
+      },
+    });
+
+    this.stop();
   }
 
   // ── Skip Confirmation ────────────────────────────────────────────
