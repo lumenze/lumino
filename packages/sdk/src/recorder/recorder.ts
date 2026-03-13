@@ -304,8 +304,14 @@ export class WalkthroughRecorder {
 
       // Capture step metadata but let the click propagate to the app
       // so navigation and interactions still work during recording
-      const target = this.resolveCaptureTarget(rawTarget);
+      const target = this.resolveCaptureTarget(rawTarget, e);
+      if (!target) return;
       const actionType = this.inferActionType(target);
+      const validation = this.validateCaptureTarget(target, actionType);
+      if (!validation.ok) {
+        this.showCaptureHint(validation.reason);
+        return;
+      }
       this.captureStep(target, actionType);
     };
 
@@ -379,6 +385,48 @@ export class WalkthroughRecorder {
     return ActionType.Click;
   }
 
+  private validateCaptureTarget(el: HTMLElement, actionType: ActionType): { ok: boolean; reason: string } {
+    const tag = el.tagName.toLowerCase();
+    const input = el as HTMLInputElement;
+
+    if (actionType === ActionType.Click || actionType === ActionType.Navigate) {
+      if ('disabled' in input && input.disabled) {
+        return { ok: false, reason: 'Control is disabled; complete prior required fields first.' };
+      }
+      if (el.getAttribute('aria-disabled') === 'true') {
+        return { ok: false, reason: 'Control is disabled (aria-disabled=true).' };
+      }
+      return { ok: true, reason: '' };
+    }
+
+    if (actionType === ActionType.Input) {
+      const value = (input.value ?? '').trim();
+      if (!value) {
+        return { ok: false, reason: 'Enter a sample value before recording this input step.' };
+      }
+      return { ok: true, reason: '' };
+    }
+
+    if (actionType === ActionType.Select) {
+      if (tag === 'select') {
+        const select = el as HTMLSelectElement;
+        if (!select.value || select.selectedIndex < 0) {
+          return { ok: false, reason: 'Choose an option before recording this select step.' };
+        }
+      }
+
+      const inputType = (input.type ?? '').toLowerCase();
+      if (inputType === 'checkbox' || inputType === 'radio') {
+        if (!input.checked) {
+          return { ok: false, reason: `Set ${inputType} state before recording this step.` };
+        }
+      }
+      return { ok: true, reason: '' };
+    }
+
+    return { ok: true, reason: '' };
+  }
+
   // ── Recording UI ──────────────────────────────────────────────────
 
   private createRecordingUI(): void {
@@ -448,6 +496,23 @@ export class WalkthroughRecorder {
     if (countEl) {
       countEl.textContent = `${this.steps.length} step${this.steps.length !== 1 ? 's' : ''}`;
     }
+  }
+
+  private showCaptureHint(message: string): void {
+    const countEl = this.toolbarEl?.querySelector('#lm-rec-count') as HTMLElement | null;
+    if (!countEl) {
+      console.warn('[Lumino Recorder]', message);
+      return;
+    }
+
+    const prevColor = countEl.style.color;
+    countEl.textContent = message;
+    countEl.style.color = '#F59E0B';
+    setTimeout(() => {
+      if (!this.toolbarEl) return;
+      countEl.textContent = `${this.steps.length} step${this.steps.length !== 1 ? 's' : ''}`;
+      countEl.style.color = prevColor;
+    }, 1800);
   }
 
   private highlightElement(el: HTMLElement): void {
@@ -528,11 +593,79 @@ export class WalkthroughRecorder {
     }
   }
 
-  private resolveCaptureTarget(el: HTMLElement): HTMLElement {
+  private resolveCaptureTarget(el: HTMLElement, event: MouseEvent): HTMLElement | null {
     const interactive = el.closest(
-      'input, textarea, select, button, a, label, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="option"]',
+      'input, textarea, select, button, a, label, [role="button"], [role="radio"], [role="checkbox"], [role="switch"], [role="option"], [tabindex]',
     ) as HTMLElement | null;
-    return interactive ?? el;
+    const firstChoice = interactive ?? el;
+    if (this.isBadCaptureTarget(firstChoice)) {
+      const fallback = this.findBestTargetAtPoint(event.clientX, event.clientY, firstChoice);
+      if (fallback && !this.isBadCaptureTarget(fallback)) return fallback;
+      return null;
+    }
+    return firstChoice;
+  }
+
+  private findBestTargetAtPoint(x: number, y: number, initial: HTMLElement): HTMLElement | null {
+    const tried = new Set<HTMLElement>();
+    let candidate: HTMLElement | null = initial;
+
+    // Try up to 4 layers by temporarily disabling pointer events on bad overlays.
+    for (let i = 0; i < 4; i++) {
+      if (!candidate || tried.has(candidate)) break;
+      tried.add(candidate);
+
+      if (!this.isBadCaptureTarget(candidate)) return candidate;
+
+      const prev = candidate.style.pointerEvents;
+      candidate.style.pointerEvents = 'none';
+      const underneath = document.elementFromPoint(x, y) as HTMLElement | null;
+      candidate.style.pointerEvents = prev;
+      candidate = underneath;
+    }
+
+    return null;
+  }
+
+  private isBadCaptureTarget(el: HTMLElement): boolean {
+    if (!el || !document.body.contains(el)) return true;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return true;
+
+    const style = window.getComputedStyle(el);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.opacity === '0' ||
+      style.pointerEvents === 'none'
+    ) {
+      return true;
+    }
+
+    const idClass = `${el.id || ''} ${(el.className || '').toString()}`.toLowerCase();
+    // Avoid capturing transient overlays/backdrops/wrappers as actionable steps.
+    if (
+      idClass.includes('overlay') ||
+      idClass.includes('backdrop') ||
+      idClass.includes('mask') ||
+      idClass.includes('scrim')
+    ) {
+      const tag = el.tagName.toLowerCase();
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      const interactiveHint =
+        tag === 'button' ||
+        tag === 'a' ||
+        tag === 'input' ||
+        tag === 'select' ||
+        role === 'button' ||
+        role === 'option' ||
+        role === 'radio' ||
+        role === 'checkbox';
+      if (!interactiveHint) return true;
+    }
+
+    return false;
   }
 
   private getElementLabel(el: HTMLElement): string {

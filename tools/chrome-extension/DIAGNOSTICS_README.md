@@ -91,6 +91,25 @@ For each bug, collect all of the following:
 5. Extension version (`Lumino Demo Injector` version).
 6. If possible, extension background console logs and a screenshot.
 
+## Auto-generate repro steps from a report
+Use the local parser to convert a raw debug JSON into an engineer-friendly summary:
+
+```bash
+node tools/chrome-extension/scripts/summarize-debug-report.mjs /path/to/lumino-debug-xxxx.json
+```
+
+Example with your Downloads folder:
+
+```bash
+node tools/chrome-extension/scripts/summarize-debug-report.mjs ~/Downloads/lumino-debug-dbg-1773419434462-0q0i.json
+```
+
+The output includes:
+1. Session context
+2. Inferred reproduction steps
+3. Key findings (stuck step, duplicate starts, API failures)
+4. Timeline snippet
+
 ## Recommended next implementation steps
 1. Merge extension logs into the same downloadable report.
 2. Capture global JS errors (`window.onerror`, `unhandledrejection`) into `DebugLogger`.
