@@ -193,7 +193,7 @@ const NOTIFICATION_CSS = `
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-radius: 18px; padding: 22px; padding-left: 26px;
     box-shadow: 0 24px 64px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.03), 0 0 40px rgba(224,122,47,0.05);
-    z-index: 100001; pointer-events: auto;
+    z-index: 99980; pointer-events: auto;
     transform: translateY(20px) scale(0.96); opacity: 0; filter: blur(4px);
     transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;

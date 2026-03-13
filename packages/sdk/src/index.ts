@@ -809,7 +809,7 @@ export class Lumino {
 const DEBUG_BTN_CSS = `
   .lm-debug-btn {
     position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-    z-index: 99999; pointer-events: auto;
+    z-index: 110000; pointer-events: auto;
     padding: 6px 14px; border-radius: 20px; border: none;
     background: rgba(30,30,54,0.85); backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -828,7 +828,7 @@ const DEBUG_BTN_CSS = `
 
 const AUTHOR_FAB_CSS = `
   .lm-author-fab {
-    position: fixed; bottom: 20px; right: 20px; z-index: 100000;
+    position: fixed; bottom: 20px; right: 20px; z-index: 120000;
     display: flex; align-items: center; gap: 8px;
     padding: 13px 22px; border-radius: 16px; border: none;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
@@ -856,7 +856,7 @@ const AUTHOR_FAB_CSS = `
     animation: none;
   }
   .lm-save-dialog {
-    position: fixed; bottom: 80px; right: 20px; z-index: 100000;
+    position: fixed; bottom: 80px; right: 20px; z-index: 120001;
     width: 360px; max-height: 80vh; overflow-y: auto;
     background: rgba(15,15,30,0.94); border-radius: 20px; padding: 22px;
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);

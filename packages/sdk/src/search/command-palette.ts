@@ -189,7 +189,7 @@ export class CommandPalette {
 
 const PALETTE_CSS = `
   .lm-chat-launcher {
-    position: fixed; right: 20px; bottom: 20px; z-index: 100000;
+    position: fixed; right: 20px; bottom: 20px; z-index: 99970;
     border: none; border-radius: 999px; padding: 12px 18px; cursor: pointer;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
     color: #fff; font-weight: 700; font-size: 13px;
@@ -206,7 +206,7 @@ const PALETTE_CSS = `
     overflow: auto; background: #fff; border-radius: 18px; padding: 16px;
     border: 1px solid rgba(0,0,0,0.06);
     box-shadow: 0 24px 48px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.03);
-    z-index: 100000; opacity: 0; transform: translateY(8px) scale(0.98);
+    z-index: 99970; opacity: 0; transform: translateY(8px) scale(0.98);
     pointer-events: none; transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   }
