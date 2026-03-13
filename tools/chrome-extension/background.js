@@ -27,6 +27,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.webNavigation.onCompleted.addListener(async (details) => {
   if (details.frameId !== 0) return;
+  if (!isInjectableUrl(details.url)) return;
 
   const data = await chrome.storage.session.get(['injectionActive', 'injectionConfig', 'sdkCodeCache']);
   if (!data.injectionActive || !data.injectionConfig || !data.sdkCodeCache) return;
@@ -35,8 +36,9 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
   console.log('[Lumino Demo] Auto-reinjecting on navigation:', details.url);
 
   try {
-    // Step 1: Read saved recording steps from sessionStorage BEFORE reinject wipes it
-    let savedSteps = null;
+    // Step 1: Read saved state from sessionStorage BEFORE reinject wipes it
+    let savedRecordingSteps = null;
+    let savedPlaybackState = null;
     try {
       const [result] = await chrome.scripting.executeScript({
         target: { tabId },
@@ -44,28 +46,55 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
         func: () => {
           const steps = sessionStorage.getItem('__lumino_recording_steps__');
           const active = sessionStorage.getItem('__lumino_recording_active__');
-          console.log('[Lumino Demo] sessionStorage check — active:', active, 'steps:', steps ? 'found (' + JSON.parse(steps).length + ')' : 'none');
-          return (active === 'true' && steps) ? steps : null;
+          const playback = sessionStorage.getItem('__lumino_playback_state__');
+          console.log('[Lumino Demo] sessionStorage check — recording:', active, 'playback:', playback);
+          return {
+            recording: (active === 'true' && steps) ? steps : null,
+            playback: playback || null,
+          };
         },
       });
-      savedSteps = result?.result ? JSON.parse(result.result) : null;
-      console.log('[Lumino Demo] Saved steps from sessionStorage:', savedSteps ? savedSteps.length : 0);
+      const data2 = result?.result;
+      savedRecordingSteps = data2?.recording ? JSON.parse(data2.recording) : null;
+      savedPlaybackState = data2?.playback ? JSON.parse(data2.playback) : null;
     } catch (e) {
-      console.warn('[Lumino Demo] Could not read saved recording state:', e);
+      console.warn('[Lumino Demo] Could not read saved state:', e);
     }
 
     // Step 2: Reinject the SDK
     await injectSdk(tabId, data.sdkCodeCache, data.injectionConfig);
 
-    // Step 3: If there were saved steps, resume recording (polls for SDK readiness)
-    if (savedSteps && savedSteps.length > 0) {
-      console.log('[Lumino Demo] Found', savedSteps.length, 'saved steps — will resume recording');
-      await resumeRecording(tabId, savedSteps);
+    // Step 3a: If there were saved recording steps, resume recording
+    if (savedRecordingSteps && savedRecordingSteps.length > 0) {
+      console.log('[Lumino Demo] Found', savedRecordingSteps.length, 'saved steps — will resume recording');
+      await resumeRecording(tabId, savedRecordingSteps);
+    }
+
+    // Step 3b: If there was a walkthrough playing, resume playback at the correct step
+    if (savedPlaybackState && savedPlaybackState.walkthroughId) {
+      console.log('[Lumino Demo] Found saved playback state — resuming walkthrough', savedPlaybackState.walkthroughId, 'at step', savedPlaybackState.stepIndex);
+      await resumePlayback(tabId, savedPlaybackState);
     }
   } catch (err) {
     console.error('[Lumino Demo] Auto-reinject failed:', err);
   }
 });
+
+function isInjectableUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('edge://') ||
+    url.startsWith('about:') ||
+    url.startsWith('devtools://') ||
+    url.startsWith('view-source:')
+  ) {
+    return false;
+  }
+  return true;
+}
 
 async function fetchSdkCode(url) {
   const response = await fetch(url);
@@ -229,6 +258,61 @@ async function resumeRecording(tabId, steps) {
   }
 
   console.error('[Lumino Demo] Gave up waiting for SDK to initialize after', maxAttempts, 'attempts');
+}
+
+/**
+ * Resume walkthrough playback at a specific step after page navigation.
+ * Polls for SDK readiness, then starts the walkthrough at the saved step.
+ */
+async function resumePlayback(tabId, playbackState) {
+  const maxAttempts = 20;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise((r) => setTimeout(r, 500));
+
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (stateJson, attemptNum) => {
+        try {
+          var state = JSON.parse(stateJson);
+          var mod = window.LuminoSDK;
+          var LuminoClass = mod && (mod.default || mod.Lumino);
+          var instance = LuminoClass && LuminoClass.getInstance && LuminoClass.getInstance();
+
+          if (!instance || !instance.isInitialized) {
+            console.log('[Lumino Demo] Waiting for SDK init for playback resume... (attempt ' + (attemptNum + 1) + ')');
+            return { ready: false };
+          }
+
+          // Write the playback state to sessionStorage so the SDK picks it up
+          // when it loads the walkthrough
+          sessionStorage.setItem('__lumino_playback_state__', JSON.stringify(state));
+
+          // Start the walkthrough — the SDK's startWalkthrough will read
+          // sessionStorage and resume at the correct step
+          if (instance.startWalkthrough) {
+            instance.startWalkthrough(state.walkthroughId);
+            console.log('%c[Lumino Demo] Playback resumed: walkthrough ' + state.walkthroughId + ' at step ' + state.stepIndex, 'color: #e07a2f; font-weight: bold;');
+            return { ready: true, resumed: true };
+          } else {
+            console.warn('[Lumino Demo] startWalkthrough not available');
+            return { ready: true, error: 'no startWalkthrough' };
+          }
+        } catch (err) {
+          console.error('[Lumino Demo] Playback resume attempt failed:', err.message);
+          return { ready: false, error: err.message };
+        }
+      },
+      args: [JSON.stringify(playbackState), attempt],
+    });
+
+    if (result?.result?.ready) {
+      return;
+    }
+  }
+
+  console.error('[Lumino Demo] Gave up waiting for SDK to resume playback');
 }
 
 async function removeSdk(tabId) {

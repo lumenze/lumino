@@ -175,15 +175,18 @@ export class WalkthroughPlayer {
 
     // Find the target element
     const el = this.domObserver.findElement(step.selector);
-    if (!el) {
-      this.dbg.log('warn', 'player', `Element not found — waiting 10s`, {
+    const targetReady = !!el && this.isInteractableTarget(el);
+    if (!targetReady) {
+      this.dbg.log('warn', 'player', `Element not ready (missing/hidden) — waiting 10s`, {
         primary: step.selector.primary,
         fallbacks: step.selector.fallbacks,
         textContent: step.selector.textContent?.slice(0, 50),
         ariaLabel: step.selector.ariaLabel,
         domPath: step.selector.domPath,
+        foundButHidden: !!el,
+        foundRect: el ? this.rectSummary(el) : null,
       });
-      // Element not found — wait for it, auto-skip after timeout
+      // Element missing/hidden — wait for an interactable target, auto-skip after timeout
       let found = false;
       const cancel = this.domObserver.waitForElement(
         step.id,
@@ -198,6 +201,7 @@ export class WalkthroughPlayer {
           this.renderStep(step, foundEl, active.stepIndex, active.totalSteps);
         },
         10000,
+        (candidate) => this.isInteractableTarget(candidate),
       );
       // If not found after timeout, auto-skip to next step
       const skipTimer = setTimeout(() => {
@@ -215,6 +219,37 @@ export class WalkthroughPlayer {
 
     this.logger.debug('Element found');
     this.renderStep(step, el, active.stepIndex, active.totalSteps);
+  }
+
+  private isInteractableTarget(el: Element): boolean {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+
+    const style = window.getComputedStyle(el);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.opacity === '0' ||
+      style.pointerEvents === 'none'
+    ) {
+      return false;
+    }
+
+    const node = el as HTMLElement;
+    if ('disabled' in node && (node as HTMLInputElement).disabled) return false;
+    if (node.getAttribute('aria-disabled') === 'true') return false;
+
+    return true;
+  }
+
+  private rectSummary(el: Element): { x: number; y: number; w: number; h: number } {
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      w: Math.round(rect.width),
+      h: Math.round(rect.height),
+    };
   }
 
   private renderStep(step: WalkthroughStep, targetEl: Element, stepIndex: number, totalSteps: number): void {

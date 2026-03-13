@@ -352,6 +352,10 @@ export class WalkthroughRecorder {
     if (role === 'radio' || role === 'checkbox' || role === 'switch' || inputType === 'radio' || inputType === 'checkbox') {
       return ActionType.Select;
     }
+    // Buttons implemented as <input> should be treated as click actions.
+    if (tag === 'input' && ['submit', 'button', 'reset', 'image'].includes(inputType)) {
+      return ActionType.Click;
+    }
     if (tag === 'input' || tag === 'textarea') return ActionType.Input;
     if (tag === 'select') return ActionType.Select;
     if (tag === 'a' && el.getAttribute('href')) return ActionType.Navigate;

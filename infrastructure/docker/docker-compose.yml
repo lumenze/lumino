@@ -91,7 +91,7 @@ services:
       dockerfile: infrastructure/docker/Dockerfile.novapay
     container_name: lumino-novapay
     ports:
-      - "3100:3000"
+      - "3100:3100"
     environment:
       LUMINO_SDK_URL: http://localhost:3000/sdk/v1/lumino.js
 

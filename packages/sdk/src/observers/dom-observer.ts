@@ -88,10 +88,11 @@ export class DomObserver {
     selector: ElementSelector,
     callback: (el: Element) => void,
     timeoutMs = 10000,
+    predicate?: (el: Element) => boolean,
   ): () => void {
     // Check if already present
     const existing = this.findElement(selector);
-    if (existing) {
+    if (existing && (!predicate || predicate(existing))) {
       callback(existing);
       return () => {};
     }
@@ -108,7 +109,9 @@ export class DomObserver {
     this.watchedSelectors.set(id, {
       selector,
       callback: (el) => {
-        if (el && !resolved) {
+        if (!el || resolved) return;
+        if (predicate && !predicate(el)) return;
+        if (!resolved) {
           resolved = true;
           clearTimeout(timer);
           this.watchedSelectors.delete(id);
