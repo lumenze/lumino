@@ -150,15 +150,33 @@ $('#injectBtn').addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error('No active tab');
 
-    // First, fetch the SDK script content from the server
-    // We do this from the background worker to avoid CORS
-    const sdkCode = await chrome.runtime.sendMessage({
-      action: 'fetchSdk',
-      url: `${serverUrl}/sdk/v1/lumino.js`,
+    // Check SDK version hash — only re-fetch if content changed
+    btn.textContent = 'Checking version...';
+    const versionResult = await chrome.runtime.sendMessage({
+      action: 'checkSdkVersion',
+      url: `${serverUrl}/sdk/v1/version`,
     });
 
-    if (sdkCode.error) {
-      throw new Error(sdkCode.error);
+    const cachedData = await chrome.storage.session.get(['sdkCodeCache', 'sdkHash']);
+    let sdkCodeStr;
+
+    if (versionResult.hash && cachedData.sdkHash === versionResult.hash && cachedData.sdkCodeCache) {
+      // SDK hasn't changed — use cached code
+      sdkCodeStr = cachedData.sdkCodeCache;
+      btn.textContent = 'Injecting (cached)...';
+    } else {
+      // SDK changed or no cache — fetch fresh
+      btn.textContent = 'Fetching SDK...';
+      const sdkCode = await chrome.runtime.sendMessage({
+        action: 'fetchSdk',
+        url: `${serverUrl}/sdk/v1/lumino.js`,
+      });
+      if (sdkCode.error) {
+        throw new Error(sdkCode.error);
+      }
+      sdkCodeStr = sdkCode.code;
+      // Save hash for next comparison
+      chrome.storage.session.set({ sdkHash: versionResult.hash || null });
     }
 
     // Inject via background script which uses chrome.debugger or
@@ -168,7 +186,7 @@ $('#injectBtn').addEventListener('click', async () => {
     await chrome.runtime.sendMessage({
       action: 'injectSdk',
       tabId: tab.id,
-      sdkCode: sdkCode.code,
+      sdkCode: sdkCodeStr,
       config: injectionConfig,
     });
 
@@ -176,7 +194,7 @@ $('#injectBtn').addEventListener('click', async () => {
     chrome.storage.session.set({
       injectionActive: true,
       injectionConfig,
-      sdkCodeCache: sdkCode.code,
+      sdkCodeCache: sdkCodeStr,
     });
 
     setStatus(true);

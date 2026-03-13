@@ -1,12 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 
 /**
  * SDK Serve Module
  *
  * Serves the built lumino.js file from the server.
  * In production, this is the on-prem hosted SDK the host app loads via script tag.
+ *
+ * Cache strategy:
+ * - SDK bundle cached with ETag + long max-age for fast loads
+ * - /sdk/v1/version endpoint returns content hash (no-cache) so clients
+ *   can detect when the SDK changed and bust the cache with ?v={hash}
  */
 
 const SDK_CANDIDATES = [
@@ -29,16 +35,60 @@ async function readFirstAvailable(candidates: Array<(cwd: string) => string>): P
   return null;
 }
 
+// Cached SDK content + hash — recomputed when file changes
+let sdkCache: { content: string; hash: string; loadedAt: number } | null = null;
+const CACHE_CHECK_INTERVAL = 30_000; // re-read file every 30s to detect changes
+
+async function getSdkBundle(): Promise<{ content: string; hash: string; loadedAt: number } | null> {
+  const now = Date.now();
+  if (sdkCache && (now - sdkCache.loadedAt) < CACHE_CHECK_INTERVAL) {
+    return sdkCache;
+  }
+
+  const content = await readFirstAvailable(SDK_CANDIDATES);
+  if (!content) return null;
+
+  const hash = createHash('sha256').update(content).digest('hex').slice(0, 12);
+
+  // Only update cache if content actually changed
+  if (!sdkCache || sdkCache.hash !== hash) {
+    sdkCache = { content, hash, loadedAt: now };
+  } else {
+    sdkCache.loadedAt = now;
+  }
+
+  return sdkCache;
+}
+
 export async function registerSdkServeModule(app: FastifyInstance): Promise<void> {
-  // Serve SDK bundle
+  // Pre-warm the cache at startup
+  await getSdkBundle();
+
+  // ── Version endpoint (lightweight, no-cache) ──────────────────────
+  // Clients call this to check if the SDK changed before fetching the full bundle.
+  app.get('/sdk/v1/version', async (_request, reply) => {
+    const bundle = await getSdkBundle();
+    reply
+      .header('Content-Type', 'application/json')
+      .header('Cache-Control', 'no-cache, no-store')
+      .header('Access-Control-Allow-Origin', '*')
+      .send({
+        hash: bundle?.hash ?? null,
+        version: '0.1.0',
+        buildTime: bundle?.loadedAt ? new Date(bundle.loadedAt).toISOString() : null,
+      });
+  });
+
+  // ── SDK bundle ────────────────────────────────────────────────────
   app.get('/sdk/v1/lumino.js', async (_request, reply) => {
-    const content = await readFirstAvailable(SDK_CANDIDATES);
-    if (content) {
+    const bundle = await getSdkBundle();
+    if (bundle) {
       reply
         .header('Content-Type', 'application/javascript')
         .header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+        .header('ETag', `"${bundle.hash}"`)
         .header('Access-Control-Allow-Origin', '*')
-        .send(content);
+        .send(bundle.content);
     } else {
       // Fallback: send a minimal SDK shim for development
       reply
@@ -48,7 +98,7 @@ export async function registerSdkServeModule(app: FastifyInstance): Promise<void
     }
   });
 
-  // Serve source map
+  // ── Source map ────────────────────────────────────────────────────
   app.get('/sdk/v1/lumino.js.map', async (_request, reply) => {
     const content = await readFirstAvailable(MAP_CANDIDATES);
     if (content) {

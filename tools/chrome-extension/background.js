@@ -1,6 +1,14 @@
 // ── Lumino Demo Injector — Background Service Worker ──────────────────────
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'checkSdkVersion') {
+    fetch(message.url, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => sendResponse({ hash: data.hash, version: data.version }))
+      .catch(() => sendResponse({ hash: null, version: null }));
+    return true;
+  }
+
   if (message.action === 'fetchSdk') {
     fetchSdkCode(message.url)
       .then((code) => sendResponse({ code }))
@@ -29,10 +37,27 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
   if (details.frameId !== 0) return;
   if (!isInjectableUrl(details.url)) return;
 
-  const data = await chrome.storage.session.get(['injectionActive', 'injectionConfig', 'sdkCodeCache']);
+  const data = await chrome.storage.session.get(['injectionActive', 'injectionConfig', 'sdkCodeCache', 'sdkHash']);
   if (!data.injectionActive || !data.injectionConfig || !data.sdkCodeCache) return;
 
   const tabId = details.tabId;
+
+  // Check if SDK has been updated on the server
+  let sdkCode = data.sdkCodeCache;
+  try {
+    const versionUrl = data.injectionConfig.serverUrl + '/sdk/v1/version';
+    const versionResp = await fetch(versionUrl, { cache: 'no-store' });
+    const versionData = await versionResp.json();
+    if (versionData.hash && versionData.hash !== data.sdkHash) {
+      console.log('[Lumino Demo] SDK updated on server (hash changed), fetching fresh bundle');
+      const freshCode = await fetchSdkCode(data.injectionConfig.serverUrl + '/sdk/v1/lumino.js');
+      sdkCode = freshCode;
+      await chrome.storage.session.set({ sdkCodeCache: freshCode, sdkHash: versionData.hash });
+    }
+  } catch (e) {
+    console.warn('[Lumino Demo] Version check failed, using cached SDK:', e.message);
+  }
+
   console.log('[Lumino Demo] Auto-reinjecting on navigation:', details.url);
 
   try {
@@ -61,8 +86,8 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
       console.warn('[Lumino Demo] Could not read saved state:', e);
     }
 
-    // Step 2: Reinject the SDK
-    await injectSdk(tabId, data.sdkCodeCache, data.injectionConfig);
+    // Step 2: Reinject the SDK (using fresh or cached code)
+    await injectSdk(tabId, sdkCode, data.injectionConfig);
 
     // Step 3a: If there were saved recording steps, resume recording
     if (savedRecordingSteps && savedRecordingSteps.length > 0) {
