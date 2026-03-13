@@ -26,7 +26,6 @@ import { Logger } from './utils/logger';
 import { CommandPalette } from './search/command-palette';
 import { AnalyticsTracker } from './core/analytics';
 import { makeDraggable } from './utils/draggable';
-import { escapeHtml } from './utils/escape-html';
 import { DebugLogger } from './utils/debug-logger';
 
 type LuminoScriptConfig = {
@@ -489,7 +488,7 @@ export class Lumino {
     const header = document.createElement('div');
     header.innerHTML = `
       <h4 style="font-size:15px;font-weight:700;margin-bottom:4px;color:#FFF">Save Walkthrough</h4>
-      <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px">${steps.length} steps recorded</p>
+      <p class="lm-save-step-count" style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px">${steps.length} step${steps.length !== 1 ? 's' : ''} recorded</p>
     `;
     dialog.appendChild(header);
 
@@ -499,34 +498,93 @@ export class Lumino {
 
     const stepInputs: Array<{ titleInput: HTMLInputElement; descInput: HTMLInputElement }> = [];
 
-    steps.forEach((step, i) => {
-      const card = document.createElement('div');
-      card.className = 'lm-step-edit-card';
+    const rebuildStepList = () => {
+      stepList.innerHTML = '';
+      stepInputs.length = 0;
 
-      const badge = document.createElement('div');
-      badge.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
-      badge.innerHTML = `
-        <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#FFF;flex-shrink:0">${i + 1}</div>
-        <span style="font-size:10px;color:#E07A2F;font-weight:600;text-transform:uppercase">${escapeHtml(step.actionType)}</span>
-      `;
-      card.appendChild(badge);
+      steps.forEach((step, i) => {
+        const card = document.createElement('div');
+        card.className = 'lm-step-edit-card';
 
-      const titleInput = document.createElement('input');
-      titleInput.className = 'lm-save-input';
-      titleInput.placeholder = 'Step title';
-      titleInput.value = step.title;
-      card.appendChild(titleInput);
+        const badge = document.createElement('div');
+        badge.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+        badge.innerHTML = `
+          <div class="lm-step-badge">${i + 1}</div>
+          <select class="lm-step-action-select">
+            <option value="click"${step.actionType === 'click' ? ' selected' : ''}>Click</option>
+            <option value="input"${step.actionType === 'input' ? ' selected' : ''}>Input</option>
+            <option value="select"${step.actionType === 'select' ? ' selected' : ''}>Select</option>
+            <option value="navigate"${step.actionType === 'navigate' ? ' selected' : ''}>Navigate</option>
+          </select>
+          <button class="lm-step-highlight-btn" title="Highlight element on page">&#128065;</button>
+          <button class="lm-step-delete-btn" title="Delete step">&#10005;</button>
+        `;
+        card.appendChild(badge);
 
-      const descInput = document.createElement('input');
-      descInput.className = 'lm-save-input';
-      descInput.placeholder = 'Step description';
-      descInput.value = step.description;
-      descInput.style.marginBottom = '0';
-      card.appendChild(descInput);
+        const selectorHint = document.createElement('div');
+        selectorHint.className = 'lm-step-selector-hint';
+        const selPreview = step.selector.primary.length > 40
+          ? step.selector.primary.slice(0, 40) + '...'
+          : step.selector.primary;
+        selectorHint.textContent = selPreview;
+        card.appendChild(selectorHint);
 
-      stepInputs.push({ titleInput, descInput });
-      stepList.appendChild(card);
-    });
+        const titleInput = document.createElement('input');
+        titleInput.className = 'lm-save-input';
+        titleInput.placeholder = 'Step title';
+        titleInput.value = step.title;
+        card.appendChild(titleInput);
+
+        const descInput = document.createElement('input');
+        descInput.className = 'lm-save-input';
+        descInput.placeholder = 'Step description';
+        descInput.value = step.description;
+        descInput.style.marginBottom = '0';
+        card.appendChild(descInput);
+
+        // Wire action type change
+        const actionSelect = badge.querySelector('.lm-step-action-select') as HTMLSelectElement;
+        actionSelect.addEventListener('change', () => {
+          step.actionType = actionSelect.value as typeof step.actionType;
+        });
+
+        // Wire highlight button — flash the target element on the page
+        const highlightBtn = badge.querySelector('.lm-step-highlight-btn') as HTMLButtonElement;
+        highlightBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const el = document.querySelector(step.selector.primary) as HTMLElement | null;
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const prev = el.style.outline;
+            const prevBg = el.style.backgroundColor;
+            el.style.outline = '3px solid #E07A2F';
+            el.style.backgroundColor = 'rgba(224,122,47,0.12)';
+            setTimeout(() => { el.style.outline = prev; el.style.backgroundColor = prevBg; }, 1500);
+          } else {
+            highlightBtn.textContent = 'Not found';
+            highlightBtn.style.color = '#ef4444';
+            setTimeout(() => { highlightBtn.innerHTML = '&#128065;'; highlightBtn.style.color = ''; }, 1200);
+          }
+        });
+
+        // Wire delete button
+        const deleteBtn = badge.querySelector('.lm-step-delete-btn') as HTMLButtonElement;
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          steps.splice(i, 1);
+          steps.forEach((s, idx) => { s.order = idx; });
+          // Update header count
+          const countEl = dialog.querySelector('.lm-save-step-count');
+          if (countEl) countEl.textContent = `${steps.length} step${steps.length !== 1 ? 's' : ''} recorded`;
+          rebuildStepList();
+        });
+
+        stepInputs.push({ titleInput, descInput });
+        stepList.appendChild(card);
+      });
+    };
+
+    rebuildStepList();
 
     dialog.appendChild(stepList);
 
@@ -849,6 +907,39 @@ const AUTHOR_FAB_CSS = `
     transition: border-color 0.15s;
   }
   .lm-step-edit-card:hover { border-color: rgba(255,255,255,0.1); }
+
+  .lm-step-badge {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, #E07A2F, #F5A623);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 800; color: #FFF; flex-shrink: 0;
+  }
+  .lm-step-action-select {
+    padding: 3px 6px; border-radius: 6px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(224,122,47,0.1); color: #E07A2F;
+    font-family: inherit; outline: none; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+  }
+  .lm-step-action-select option { background: #1a1a2e; color: #e0e0e0; text-transform: none; }
+  .lm-step-action-select:focus { border-color: #E07A2F; }
+  .lm-step-highlight-btn {
+    padding: 3px 6px; border-radius: 6px; border: none; margin-left: auto;
+    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4);
+    font-size: 12px; cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+  }
+  .lm-step-highlight-btn:hover { background: rgba(255,255,255,0.1); color: #E07A2F; }
+  .lm-step-delete-btn {
+    padding: 3px 7px; border-radius: 6px; border: none;
+    background: rgba(239,68,68,0.08); color: rgba(239,68,68,0.5);
+    font-size: 11px; cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+  }
+  .lm-step-delete-btn:hover { background: rgba(239,68,68,0.18); color: #ef4444; }
+  .lm-step-selector-hint {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 9px; color: rgba(255,255,255,0.2); margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 `;
 
 // ── Global ──────────────────────────────────────────────────────────────

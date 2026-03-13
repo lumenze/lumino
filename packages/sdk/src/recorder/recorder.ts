@@ -546,26 +546,97 @@ export class WalkthroughRecorder {
 
     const card = document.createElement('div');
     card.className = 'lm-rec-step-card';
+    card.dataset.stepId = step.id;
     const selectorPreview = step.selector.primary.length > 30
       ? step.selector.primary.slice(0, 30) + '...'
       : step.selector.primary;
 
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#FFF;flex-shrink:0">${step.order + 1}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:600;color:#FFF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(step.title)}</div>
-          <div style="font-size:9px;color:rgba(255,255,255,0.35);margin-top:1px;display:flex;align-items:center;gap:4px">
-            <span style="color:#E07A2F;font-weight:600;text-transform:uppercase">${step.actionType}</span>
-            <span>${escapeHtml(selectorPreview)}</span>
-          </div>
+    // Collapsed header
+    const header = document.createElement('div');
+    header.className = 'lm-rec-card-header';
+    header.innerHTML = `
+      <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#E07A2F,#F5A623);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#FFF;flex-shrink:0">${step.order + 1}</div>
+      <div style="flex:1;min-width:0">
+        <div class="lm-rec-card-title">${escapeHtml(step.title)}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,0.35);margin-top:1px;display:flex;align-items:center;gap:4px">
+          <span style="color:#E07A2F;font-weight:600;text-transform:uppercase">${step.actionType}</span>
+          <span>${escapeHtml(selectorPreview)}</span>
         </div>
       </div>
+      <span class="lm-rec-card-chevron">&#9654;</span>
     `;
+    card.appendChild(header);
+
+    // Expandable edit form
+    const editForm = document.createElement('div');
+    editForm.className = 'lm-rec-card-edit';
+    editForm.innerHTML = `
+      <input class="lm-rec-edit-input" data-field="title" placeholder="Step title" value="${escapeHtml(step.title)}" />
+      <input class="lm-rec-edit-input" data-field="desc" placeholder="Description" value="${escapeHtml(step.description)}" />
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="lm-rec-edit-select" data-field="action">
+          <option value="click"${step.actionType === 'click' ? ' selected' : ''}>Click</option>
+          <option value="input"${step.actionType === 'input' ? ' selected' : ''}>Input</option>
+          <option value="select"${step.actionType === 'select' ? ' selected' : ''}>Select</option>
+          <option value="navigate"${step.actionType === 'navigate' ? ' selected' : ''}>Navigate</option>
+        </select>
+        <button class="lm-rec-edit-delete" title="Delete step">&#10005;</button>
+      </div>
+    `;
+    card.appendChild(editForm);
+
+    // Toggle expand/collapse on header click
+    header.addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.classList.toggle('lm-rec-card-expanded');
+    });
+
+    // Prevent drag when interacting with inputs
+    editForm.addEventListener('mousedown', (e) => e.stopPropagation());
+
+    // Wire edit inputs to update the step data
+    const titleInput = editForm.querySelector('[data-field="title"]') as HTMLInputElement;
+    const descInput = editForm.querySelector('[data-field="desc"]') as HTMLInputElement;
+    const actionSelect = editForm.querySelector('[data-field="action"]') as HTMLSelectElement;
+    const deleteBtn = editForm.querySelector('.lm-rec-edit-delete') as HTMLButtonElement;
+
+    titleInput.addEventListener('input', () => {
+      step.title = titleInput.value.trim() || step.title;
+      const titleEl = header.querySelector('.lm-rec-card-title');
+      if (titleEl) titleEl.textContent = titleInput.value.trim() || step.title;
+    });
+    descInput.addEventListener('input', () => {
+      step.description = descInput.value.trim() || step.description;
+    });
+    actionSelect.addEventListener('change', () => {
+      step.actionType = actionSelect.value as ActionType;
+    });
+
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = this.steps.findIndex(s => s.id === step.id);
+      if (idx >= 0) {
+        this.steps.splice(idx, 1);
+        // Re-number remaining steps
+        this.steps.forEach((s, i) => { s.order = i; });
+        card.remove();
+        this.renumberStepCards();
+        this.updateToolbarCount();
+      }
+    });
 
     this.stepListEl.appendChild(card);
     // Scroll to bottom
     this.stepListEl.scrollTop = this.stepListEl.scrollHeight;
+  }
+
+  private renumberStepCards(): void {
+    if (!this.stepListEl) return;
+    const cards = this.stepListEl.querySelectorAll('.lm-rec-step-card');
+    cards.forEach((card, i) => {
+      const badge = card.querySelector('.lm-rec-card-header div:first-child') as HTMLElement | null;
+      if (badge) badge.textContent = `${i + 1}`;
+    });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────
@@ -772,7 +843,7 @@ const RECORDER_CSS = `
   }
 
   .lm-rec-steps {
-    position: fixed; bottom: 16px; left: 16px; width: 240px; max-height: 220px;
+    position: fixed; bottom: 16px; left: 16px; width: 260px; max-height: 260px;
     overflow-y: auto; z-index: 100005; pointer-events: auto;
     background: rgba(30,30,54,0.9); backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -802,9 +873,62 @@ const RECORDER_CSS = `
   .lm-rec-step-card {
     padding: 8px 10px; border-radius: 8px; margin-bottom: 4px;
     background: rgba(255,255,255,0.04);
+    border: 1px solid transparent;
     animation: lm-step-slide 0.3s cubic-bezier(0.16,1,0.3,1) forwards;
     opacity: 0; transform: translateX(10px);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .lm-rec-step-card:hover { border-color: rgba(255,255,255,0.08); }
+  .lm-rec-step-card.lm-rec-card-expanded {
+    border-color: rgba(224,122,47,0.25);
+    background: rgba(255,255,255,0.06);
   }
   .lm-rec-step-card:last-child { margin-bottom: 0; }
   @keyframes lm-step-slide { to { opacity: 1; transform: translateX(0); } }
+
+  .lm-rec-card-header {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+  }
+  .lm-rec-card-title {
+    font-size: 11px; font-weight: 600; color: #FFF;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lm-rec-card-chevron {
+    font-size: 8px; color: rgba(255,255,255,0.25); flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .lm-rec-card-expanded .lm-rec-card-chevron { transform: rotate(90deg); color: #E07A2F; }
+
+  .lm-rec-card-edit {
+    display: none; margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .lm-rec-card-expanded .lm-rec-card-edit { display: block; }
+
+  .lm-rec-edit-input {
+    display: block; width: 100%; padding: 6px 8px; margin-bottom: 6px;
+    border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04); color: #FFF; font-size: 11px;
+    font-family: inherit; outline: none; transition: border-color 0.2s;
+  }
+  .lm-rec-edit-input::placeholder { color: rgba(255,255,255,0.2); }
+  .lm-rec-edit-input:focus { border-color: #E07A2F; }
+
+  .lm-rec-edit-select {
+    flex: 1; padding: 5px 8px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04); color: #FFF; font-size: 10px;
+    font-family: inherit; outline: none; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+  }
+  .lm-rec-edit-select option { background: #1a1a2e; color: #e0e0e0; }
+  .lm-rec-edit-select:focus { border-color: #E07A2F; }
+
+  .lm-rec-edit-delete {
+    padding: 4px 8px; border-radius: 6px; border: none;
+    background: rgba(239,68,68,0.1); color: #ef4444; font-size: 11px;
+    cursor: pointer; font-family: inherit; transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .lm-rec-edit-delete:hover { background: rgba(239,68,68,0.2); }
 `;
