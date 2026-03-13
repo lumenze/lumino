@@ -349,12 +349,29 @@ export class WalkthroughRecorder {
     const tag = el.tagName.toLowerCase();
     const role = (el.getAttribute('role') ?? '').toLowerCase();
     const inputType = ((el as HTMLInputElement).type ?? '').toLowerCase();
+    const id = (el.id ?? '').toLowerCase();
+    const name = (el.getAttribute('name') ?? '').toLowerCase();
+    const className = (el.className ?? '').toString().toLowerCase();
+    const ariaLabel = (el.getAttribute('aria-label') ?? '').toLowerCase();
     if (role === 'radio' || role === 'checkbox' || role === 'switch' || inputType === 'radio' || inputType === 'checkbox') {
       return ActionType.Select;
     }
     // Buttons implemented as <input> should be treated as click actions.
     if (tag === 'input' && ['submit', 'button', 'reset', 'image'].includes(inputType)) {
       return ActionType.Click;
+    }
+    // Date fields are usually picker-driven and behave closer to select/change.
+    if (
+      tag === 'input' &&
+      (
+        ['date', 'datetime-local', 'month', 'week', 'time'].includes(inputType) ||
+        /date|datepicker|picker/.test(id) ||
+        /date|datepicker|picker/.test(name) ||
+        /date|datepicker|picker/.test(className) ||
+        /date/.test(ariaLabel)
+      )
+    ) {
+      return ActionType.Select;
     }
     if (tag === 'input' || tag === 'textarea') return ActionType.Input;
     if (tag === 'select') return ActionType.Select;

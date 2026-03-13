@@ -78,6 +78,17 @@ export class WalkthroughPlayer {
       // sessionStorage may be unavailable
     }
 
+    const active = this.deps.stateManager.getActive();
+    if (
+      this.playing &&
+      active &&
+      active.walkthroughId === walkthroughId &&
+      active.stepIndex === startIndex
+    ) {
+      this.dbg.log('warn', 'player', `Ignoring duplicate start for ${walkthroughId} at step ${startIndex}`);
+      return;
+    }
+
     this.logger.debug(`Starting walkthrough ${walkthroughId} at step ${startIndex}`);
 
     this.deps.stateManager.setActive(walkthroughId, startIndex);
@@ -339,32 +350,45 @@ export class WalkthroughPlayer {
     } else if (actionType === 'input') {
       const inputEl = targetEl as HTMLInputElement;
       let hasTyped = false;
+      const initialValue = inputEl.value;
 
       // Track that user has typed something
       const inputHandler = () => { hasTyped = true; };
       inputEl.addEventListener('input', inputHandler);
       this.cleanupListeners.push(() => inputEl.removeEventListener('input', inputHandler));
 
-      // Advance when user presses Enter or leaves the field (blur), but only if they typed
-      const confirmHandler = () => {
-        if (!hasTyped) return;
+      const complete = () => {
         cleanup();
         setTimeout(() => this.advanceToNextStep(), 300);
       };
+
+      // Advance when user presses Enter or leaves the field (blur), but only if they typed
+      const confirmHandler = () => {
+        if (!hasTyped) return;
+        complete();
+      };
       const keyHandler = (e: KeyboardEvent) => {
         if (e.key === 'Enter' && hasTyped) {
-          cleanup();
-          setTimeout(() => this.advanceToNextStep(), 300);
+          complete();
+        }
+      };
+      // Date pickers and many host UI libs emit "change" without keyboard typing.
+      const changeHandler = () => {
+        if (inputEl.value !== initialValue || inputEl.value.length > 0) {
+          hasTyped = true;
+          complete();
         }
       };
       const cleanup = () => {
         inputEl.removeEventListener('blur', confirmHandler);
         inputEl.removeEventListener('keydown', keyHandler);
+        inputEl.removeEventListener('change', changeHandler);
       };
 
       inputEl.focus();
       inputEl.addEventListener('blur', confirmHandler);
       inputEl.addEventListener('keydown', keyHandler);
+      inputEl.addEventListener('change', changeHandler);
       this.cleanupListeners.push(cleanup);
 
     } else if (actionType === 'select') {
