@@ -1147,33 +1147,68 @@ const PLAYER_CSS = `
     50% { color: #F5A623; }
   }
 
+  /* ── Tablet / small desktop ─────────────────────────────── */
   @media (max-width: 900px) {
-    .lm-spotlight {
-      border-radius: 10px;
-    }
+    .lm-spotlight { border-radius: 10px; }
     .lm-tooltip {
       border-radius: 14px;
-      padding: 14px;
+      padding: 16px;
       max-height: min(58vh, 440px);
-      width: calc(100vw - 16px);
+      width: calc(100vw - 24px);
       max-width: 420px;
     }
     .lm-completion {
-      left: 8px;
-      right: 8px;
-      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
-      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
-      width: auto;
-      transform: none;
-      padding: 24px 16px;
-      border-radius: 16px;
+      left: 12px; right: 12px;
+      top: max(12px, env(safe-area-inset-top, 0px) + 12px);
+      bottom: max(12px, env(safe-area-inset-bottom, 0px) + 12px);
+      width: auto; transform: none;
+      padding: 28px 20px;
+      border-radius: 20px;
       overflow-y: auto;
     }
     .lm-badge {
-      right: 8px;
-      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
-      font-size: 10px;
-      padding: 6px 10px;
+      right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom, 0px) + 10px);
+      font-size: 10px; padding: 6px 12px;
     }
+    #lm-skip-btn { font-size: 12px; padding: 6px 12px; min-height: 36px; }
+    #lm-done-btn { min-height: 44px; font-size: 14px; }
+    .lm-tooltip .lm-progress-dots { gap: 6px; }
+    .lm-tooltip .lm-progress-dots span {
+      width: 8px; height: 8px;
+    }
+    .lm-tooltip .lm-progress-dots span.lm-dot-current {
+      width: 12px; height: 12px;
+    }
+  }
+
+  /* ── Small phones (≤480px) ────────────────────────────── */
+  @media (max-width: 480px) {
+    .lm-spotlight { border-radius: 8px; }
+    .lm-spotlight::before { inset: -2px; border-radius: 10px; }
+    .lm-spotlight::after { inset: -4px; border-radius: 12px; }
+    .lm-tooltip {
+      width: calc(100vw - 16px);
+      max-width: none;
+      padding: 14px;
+      border-radius: 12px;
+      max-height: min(50vh, 380px);
+      font-size: 13px;
+    }
+    .lm-tooltip::after { display: none; }
+    .lm-completion {
+      left: 6px; right: 6px;
+      top: max(6px, env(safe-area-inset-top, 0px) + 6px);
+      bottom: max(6px, env(safe-area-inset-bottom, 0px) + 6px);
+      padding: 20px 14px;
+      border-radius: 16px;
+    }
+    .lm-badge {
+      right: 6px;
+      bottom: max(6px, env(safe-area-inset-bottom, 0px) + 6px);
+      font-size: 9px; padding: 5px 8px;
+    }
+    #lm-skip-btn { font-size: 11px; padding: 5px 10px; }
+    #lm-done-btn { min-height: 44px; font-size: 13px; border-radius: 10px; }
   }
 `;

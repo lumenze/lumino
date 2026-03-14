@@ -826,6 +826,19 @@ const DEBUG_BTN_CSS = `
     color: #E07A2F; background: rgba(30,30,54,0.95);
     box-shadow: 0 6px 18px rgba(0,0,0,0.3), 0 0 0 1px rgba(224,122,47,0.3);
   }
+  @media (max-width: 900px) {
+    .lm-debug-btn {
+      bottom: max(10px, env(safe-area-inset-bottom, 0px) + 10px);
+      font-size: 10px; padding: 5px 12px;
+    }
+  }
+  @media (max-width: 480px) {
+    .lm-debug-btn {
+      bottom: max(6px, env(safe-area-inset-bottom, 0px) + 6px);
+      font-size: 9px; padding: 4px 10px;
+      opacity: 0.7;
+    }
+  }
 `;
 
 // ── Author FAB CSS ──────────────────────────────────────────────────────
@@ -950,43 +963,40 @@ const AUTHOR_FAB_CSS = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
+  /* ── Tablet / small desktop ─────────────────────────────── */
   @media (max-width: 900px) {
     .lm-author-fab {
-      left: 12px;
-      right: 12px;
+      left: 12px; right: 12px;
       bottom: max(10px, env(safe-area-inset-bottom, 0px) + 8px);
       width: auto;
       justify-content: center;
-      padding: 12px 14px;
+      padding: 14px 16px;
       border-radius: 14px;
       cursor: pointer;
-      transform: none;
-      animation: none;
+      transform: none; animation: none;
       box-shadow: 0 10px 28px rgba(224,122,47,0.35);
+      font-size: 13px;
     }
     .lm-author-fab:hover { transform: none; }
 
     .lm-save-dialog {
-      left: 8px;
-      right: 8px;
-      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
-      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
-      width: auto;
-      max-height: none;
-      border-radius: 16px;
-      padding: 14px;
+      left: 10px; right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom, 0px) + 10px);
+      top: max(10px, env(safe-area-inset-top, 0px) + 10px);
+      width: auto; max-height: none;
+      border-radius: 18px;
+      padding: 16px;
       cursor: default;
       overflow-y: auto;
     }
     .lm-step-edit-list {
-      max-height: none;
-      min-height: 160px;
+      max-height: none; min-height: 160px;
     }
-    .lm-step-edit-card { padding: 10px; }
+    .lm-step-edit-card { padding: 12px; border-radius: 10px; }
     .lm-step-action-select,
     .lm-step-highlight-btn,
     .lm-step-delete-btn {
-      min-height: 30px;
+      min-height: 36px; border-radius: 8px; font-size: 12px;
     }
     .lm-step-selector-hint {
       font-size: 10px;
@@ -994,14 +1004,41 @@ const AUTHOR_FAB_CSS = `
       word-break: break-all;
     }
     .lm-save-input {
-      min-height: 38px;
-      font-size: 14px;
+      min-height: 44px; font-size: 14px; border-radius: 10px;
     }
     .lm-save-btn,
     .lm-save-cancel {
-      min-height: 40px;
-      font-size: 13px;
+      min-height: 44px; font-size: 14px; border-radius: 10px;
     }
+  }
+
+  /* ── Small phones (≤480px) ────────────────────────────── */
+  @media (max-width: 480px) {
+    .lm-author-fab {
+      left: 8px; right: 8px;
+      bottom: max(6px, env(safe-area-inset-bottom, 0px) + 6px);
+      padding: 12px 14px;
+      border-radius: 12px; font-size: 12px;
+    }
+    .lm-save-dialog {
+      left: 4px; right: 4px;
+      bottom: max(4px, env(safe-area-inset-bottom, 0px) + 4px);
+      top: max(4px, env(safe-area-inset-top, 0px) + 4px);
+      padding: 12px;
+      border-radius: 14px;
+    }
+    .lm-step-edit-card { padding: 10px; }
+    .lm-step-action-select,
+    .lm-step-highlight-btn,
+    .lm-step-delete-btn {
+      min-height: 34px; font-size: 11px;
+    }
+    .lm-save-input { min-height: 44px; font-size: 14px; }
+    .lm-save-btn,
+    .lm-save-cancel {
+      min-height: 44px; font-size: 13px;
+    }
+    .lm-step-badge { font-size: 10px; padding: 3px 8px; }
   }
 `;
 

@@ -950,31 +950,28 @@ const RECORDER_CSS = `
   }
   .lm-rec-edit-delete:hover { background: rgba(239,68,68,0.2); }
 
+  /* ── Tablet / small desktop ─────────────────────────────── */
   @media (max-width: 900px) {
     .lm-rec-toolbar {
-      left: 12px;
-      right: 12px;
+      left: 12px; right: 12px;
       top: max(10px, env(safe-area-inset-top, 0px) + 6px);
       transform: none;
-      padding: 10px 12px;
-      gap: 8px;
+      padding: 10px 12px; gap: 8px;
       border-radius: 12px;
       flex-wrap: wrap;
       justify-content: space-between;
       cursor: default;
     }
     .lm-rec-indicator { min-width: 120px; }
-    .lm-rec-count { width: 100%; order: 3; font-size: 11px; }
+    .lm-rec-count { width: 100%; order: 3; font-size: 11px; text-align: center; }
     .lm-kbd { display: none; }
     .lm-rec-undo, .lm-rec-stop {
-      min-height: 32px;
-      padding: 6px 10px;
-      font-size: 11px;
+      min-height: 36px; padding: 8px 12px; font-size: 12px;
+      border-radius: 8px; flex: 1;
     }
 
     .lm-rec-steps {
-      left: 8px;
-      right: 8px;
+      left: 8px; right: 8px;
       bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
       width: auto;
       max-height: min(52vh, 360px);
@@ -984,8 +981,36 @@ const RECORDER_CSS = `
     }
     .lm-rec-step-card { padding: 10px; }
     .lm-rec-card-title { font-size: 12px; }
-    .lm-rec-edit-input { font-size: 12px; padding: 8px; }
-    .lm-rec-edit-select { font-size: 11px; min-height: 30px; }
-    .lm-rec-edit-delete { min-height: 30px; }
+    .lm-rec-edit-input { font-size: 14px; padding: 10px; min-height: 38px; border-radius: 8px; }
+    .lm-rec-edit-select { font-size: 13px; min-height: 36px; border-radius: 8px; }
+    .lm-rec-edit-delete { min-height: 36px; border-radius: 8px; font-size: 12px; }
+    .lm-rec-card-chevron { width: 20px; height: 20px; }
+  }
+
+  /* ── Small phones (≤480px) ────────────────────────────── */
+  @media (max-width: 480px) {
+    .lm-rec-toolbar {
+      left: 6px; right: 6px;
+      padding: 8px 10px; gap: 6px;
+      border-radius: 10px;
+    }
+    .lm-rec-indicator { min-width: 100px; font-size: 11px; }
+    .lm-rec-indicator span:first-child { width: 7px; height: 7px; }
+    .lm-rec-count { font-size: 10px; }
+    .lm-rec-undo, .lm-rec-stop {
+      min-height: 34px; padding: 6px 10px; font-size: 11px;
+    }
+    .lm-rec-steps {
+      left: 4px; right: 4px;
+      bottom: max(4px, env(safe-area-inset-bottom, 0px) + 4px);
+      max-height: min(45vh, 300px);
+      padding: 8px;
+      border-radius: 12px;
+    }
+    .lm-rec-step-card { padding: 8px; }
+    .lm-rec-card-title { font-size: 11px; }
+    .lm-rec-edit-input { font-size: 13px; padding: 8px; min-height: 36px; }
+    .lm-rec-edit-select { font-size: 12px; min-height: 34px; }
+    .lm-rec-edit-delete { min-height: 34px; font-size: 11px; }
   }
 `;

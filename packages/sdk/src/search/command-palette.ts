@@ -279,15 +279,16 @@ const PALETTE_CSS = `
     font-size: 12px; color: #9ca3af; text-align: center;
   }
 
+  /* ── Tablet / small desktop ─────────────────────────────── */
   @media (max-width: 900px) {
     .lm-chat-launcher {
-      left: 8px;
-      right: 8px;
-      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      left: 10px; right: 10px;
+      bottom: max(10px, env(safe-area-inset-bottom, 0px) + 10px);
       width: auto;
       border-radius: 14px;
-      padding: 12px 14px;
+      padding: 14px 16px;
       text-align: center;
+      font-size: 13px;
     }
     .lm-chat-launcher:hover {
       transform: none;
@@ -295,14 +296,12 @@ const PALETTE_CSS = `
     }
 
     .lm-chat-panel {
-      left: 8px;
-      right: 8px;
-      bottom: max(56px, env(safe-area-inset-bottom, 0px) + 52px);
-      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
-      width: auto;
-      max-height: none;
-      border-radius: 14px;
-      padding: 12px;
+      left: 10px; right: 10px;
+      bottom: max(58px, env(safe-area-inset-bottom, 0px) + 54px);
+      top: max(10px, env(safe-area-inset-top, 0px) + 10px);
+      width: auto; max-height: none;
+      border-radius: 16px;
+      padding: 14px;
     }
     .lm-chat-header { cursor: default; }
     .lm-chat-form {
@@ -310,12 +309,37 @@ const PALETTE_CSS = `
       gap: 8px;
     }
     .lm-chat-submit {
-      width: 100%;
-      min-height: 38px;
+      width: 100%; min-height: 44px;
+      font-size: 13px; border-radius: 10px;
     }
     .lm-chat-input {
-      min-height: 38px;
-      font-size: 14px;
+      min-height: 44px; font-size: 14px;
+      border-radius: 10px;
     }
+    .lm-chat-result {
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+  }
+
+  /* ── Small phones (≤480px) ────────────────────────────── */
+  @media (max-width: 480px) {
+    .lm-chat-launcher {
+      left: 6px; right: 6px;
+      bottom: max(6px, env(safe-area-inset-bottom, 0px) + 6px);
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .lm-chat-panel {
+      left: 4px; right: 4px;
+      bottom: max(50px, env(safe-area-inset-bottom, 0px) + 46px);
+      top: max(4px, env(safe-area-inset-top, 0px) + 4px);
+      padding: 10px;
+      border-radius: 14px;
+    }
+    .lm-chat-submit { min-height: 44px; font-size: 12px; }
+    .lm-chat-input { min-height: 44px; font-size: 14px; }
+    .lm-chat-result { padding: 8px 10px; font-size: 12px; }
   }
 `;
