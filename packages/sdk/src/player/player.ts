@@ -418,6 +418,16 @@ export class WalkthroughPlayer {
       });
 
     } else if (actionType === 'hover') {
+      if (this.isCoarsePointer()) {
+        // Mobile/touch has no reliable hover state, so treat hover guidance as tap-to-continue.
+        const tapHandler = () => {
+          setTimeout(() => this.advanceToNextStep(), 300);
+          targetEl.removeEventListener('click', tapHandler);
+        };
+        targetEl.addEventListener('click', tapHandler);
+        this.cleanupListeners.push(() => targetEl.removeEventListener('click', tapHandler));
+        return;
+      }
       const handler = () => {
         setTimeout(() => this.advanceToNextStep(), 500);
         targetEl.removeEventListener('mouseenter', handler);
@@ -661,9 +671,11 @@ export class WalkthroughPlayer {
         this.tooltipEl.style.transform = 'scale(1) translateY(0)';
       }
     });
-    makeDraggable(this.tooltipEl, this.tooltipEl, {
-      onDragged: () => { this.tooltipDragged = true; },
-    });
+    if (!this.isCoarsePointer() && window.innerWidth >= 900) {
+      makeDraggable(this.tooltipEl, this.tooltipEl, {
+        onDragged: () => { this.tooltipDragged = true; },
+      });
+    }
   }
 
   private buildProgressBar(index: number, total: number): string {
@@ -692,11 +704,23 @@ export class WalkthroughPlayer {
     if (!this.tooltipEl) return;
     if (this.tooltipDragged) return;
     const rect = targetEl.getBoundingClientRect();
-    const tw = 340;
-    const th = this.tooltipEl.offsetHeight || 200;
+    const isCoarse = this.isCoarsePointer();
+    const tw = Math.min(340, Math.max(260, window.innerWidth - 24));
+    const th = this.tooltipEl.offsetHeight || 220;
     let left: number, top: number;
     const viewportPad = 16;
     const gap = 16;
+
+    if (isCoarse || window.innerWidth < 900) {
+      left = Math.max(8, Math.round((window.innerWidth - tw) / 2));
+      top = Math.max(12, window.innerHeight - th - 10);
+      Object.assign(this.tooltipEl.style, {
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${tw}px`,
+      });
+      return;
+    }
 
     const fitsRight = rect.right + gap + tw <= window.innerWidth - viewportPad;
     const fitsLeft = rect.left - gap - tw >= viewportPad;
@@ -849,7 +873,9 @@ export class WalkthroughPlayer {
       if (doneBtn) {
         doneBtn.addEventListener('click', () => this.stop());
       }
-      makeDraggable(this.completionEl, this.completionEl, { clearTransform: true });
+      if (!this.isCoarsePointer() && window.innerWidth >= 900) {
+        makeDraggable(this.completionEl, this.completionEl, { clearTransform: true });
+      }
     }
 
     this.deps.eventBus.emit(LuminoEvent.WalkthroughCompleted, {
@@ -1012,6 +1038,13 @@ export class WalkthroughPlayer {
     this.tooltipDragged = false;
   }
 
+  private isCoarsePointer(): boolean {
+    return (
+      window.matchMedia?.('(pointer: coarse)').matches === true
+      || 'ontouchstart' in window
+    );
+  }
+
 }
 
 // ── Injected CSS ────────────────────────────────────────────────────────
@@ -1020,7 +1053,7 @@ const PLAYER_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   .lm-spotlight {
-    position: fixed; z-index: 99998; border-radius: 12px; pointer-events: none; display: none;
+    position: fixed; z-index: 2147483640; border-radius: 12px; pointer-events: none; display: none;
     box-shadow: 0 0 0 4000px rgba(0,0,0,0.45);
     will-change: top, left, width, height;
     transition: top 0.5s cubic-bezier(0.34,1.56,0.64,1), left 0.5s cubic-bezier(0.34,1.56,0.64,1),
@@ -1042,13 +1075,13 @@ const PLAYER_CSS = `
   }
 
   .lm-tooltip {
-    position: fixed; z-index: 100002; display: none;
+    position: fixed; z-index: 2147483641; display: none;
     background: rgba(15,15,30,0.92); color: #FFF; border-radius: 16px; padding: 22px;
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
     box-shadow: 0 24px 64px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06), 0 0 40px rgba(224,122,47,0.06);
     border: 1px solid rgba(255,255,255,0.12);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    pointer-events: auto; overflow: hidden;
+    pointer-events: auto; overflow: auto; max-height: min(64vh, 520px);
   }
   .lm-tooltip::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 90px;
@@ -1071,7 +1104,7 @@ const PLAYER_CSS = `
 
   .lm-completion {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    z-index: 100002; display: none;
+    z-index: 2147483642; display: none;
     background: rgba(15,15,30,0.94); color: #FFF; border-radius: 24px; padding: 44px;
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
     text-align: center; width: 380px; pointer-events: auto;
@@ -1096,7 +1129,7 @@ const PLAYER_CSS = `
   }
 
   .lm-badge {
-    position: fixed; bottom: 16px; right: 16px; z-index: 100003;
+    position: fixed; bottom: 16px; right: 16px; z-index: 2147483639;
     background: rgba(15,15,30,0.88); backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     color: rgba(255,255,255,0.5); font-size: 11px; font-weight: 600;
@@ -1112,5 +1145,35 @@ const PLAYER_CSS = `
   @keyframes lm-sparkle {
     0%,100% { color: #E07A2F; }
     50% { color: #F5A623; }
+  }
+
+  @media (max-width: 900px) {
+    .lm-spotlight {
+      border-radius: 10px;
+    }
+    .lm-tooltip {
+      border-radius: 14px;
+      padding: 14px;
+      max-height: min(58vh, 440px);
+      width: calc(100vw - 16px);
+      max-width: 420px;
+    }
+    .lm-completion {
+      left: 8px;
+      right: 8px;
+      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      width: auto;
+      transform: none;
+      padding: 24px 16px;
+      border-radius: 16px;
+      overflow-y: auto;
+    }
+    .lm-badge {
+      right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      font-size: 10px;
+      padding: 6px 10px;
+    }
   }
 `;

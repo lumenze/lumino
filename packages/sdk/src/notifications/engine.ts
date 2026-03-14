@@ -144,7 +144,9 @@ export class NotificationEngine {
     });
 
     const header = el.querySelector('.lm-notif-header') as HTMLElement | null;
-    makeDraggable(el, header ?? el);
+    if (!this.isCoarsePointer() && window.innerWidth >= 900) {
+      makeDraggable(el, header ?? el);
+    }
 
     this.containerEl.appendChild(el);
 
@@ -184,6 +186,13 @@ export class NotificationEngine {
     setTimeout(finish, 600);
   }
 
+  private isCoarsePointer(): boolean {
+    return (
+      window.matchMedia?.('(pointer: coarse)').matches === true
+      || 'ontouchstart' in window
+    );
+  }
+
 }
 
 const NOTIFICATION_CSS = `
@@ -193,7 +202,7 @@ const NOTIFICATION_CSS = `
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-radius: 18px; padding: 22px; padding-left: 26px;
     box-shadow: 0 24px 64px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.03), 0 0 40px rgba(224,122,47,0.05);
-    z-index: 99980; pointer-events: auto;
+    z-index: 2147483638; pointer-events: auto;
     transform: translateY(20px) scale(0.96); opacity: 0; filter: blur(4px);
     transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -209,7 +218,9 @@ const NOTIFICATION_CSS = `
     background: linear-gradient(90deg, transparent, rgba(224,122,47,0.2), transparent);
   }
   .lm-notif-visible { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
-  .lm-notif-visible:hover { transform: translateY(-2px) scale(1); box-shadow: 0 28px 70px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.03); }
+  @media (hover: hover) and (pointer: fine) {
+    .lm-notif-visible:hover { transform: translateY(-2px) scale(1); box-shadow: 0 28px 70px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.03); }
+  }
 
   .lm-notif-badge {
     display: inline-flex; align-items: center; gap: 5px;
@@ -253,4 +264,27 @@ const NOTIFICATION_CSS = `
     cursor: pointer; font-family: inherit; transition: all 0.2s;
   }
   .lm-notif-dismiss:hover { background: #F3F4F6; border-color: #D1D5DB; }
+
+  @media (max-width: 900px) {
+    .lm-notif {
+      left: 8px;
+      right: 8px;
+      width: auto;
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      border-radius: 14px;
+      padding: 14px;
+      padding-left: 18px;
+    }
+    .lm-notif-header { cursor: default; }
+    .lm-notif-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .lm-notif-cta,
+    .lm-notif-dismiss {
+      min-height: 40px;
+      padding: 10px 12px;
+    }
+  }
 `;

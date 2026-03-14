@@ -455,7 +455,9 @@ export class Lumino {
     fab.className = 'lm-author-fab';
     fab.innerHTML = '<span class="lm-rec-dot"></span> Record Guide';
     container.appendChild(fab);
-    makeDraggable(fab, fab);
+    if (window.innerWidth >= 900) {
+      makeDraggable(fab, fab);
+    }
     this.fabEl = fab;
 
     let capturedSteps: WalkthroughStep[] = [];
@@ -629,7 +631,9 @@ export class Lumino {
     dialog.appendChild(btnRow);
     container.appendChild(dialog);
     requestAnimationFrame(() => dialog.classList.add('lm-save-visible'));
-    makeDraggable(dialog, dialog);
+    if (window.innerWidth >= 900) {
+      makeDraggable(dialog, dialog);
+    }
 
     submit.addEventListener('click', async () => {
       const title = wtTitleInput.value.trim() || 'Untitled Walkthrough';
@@ -828,7 +832,7 @@ const DEBUG_BTN_CSS = `
 
 const AUTHOR_FAB_CSS = `
   .lm-author-fab {
-    position: fixed; bottom: 20px; right: 20px; z-index: 120000;
+    position: fixed; bottom: 20px; right: 20px; z-index: 2147483645;
     display: flex; align-items: center; gap: 8px;
     padding: 13px 22px; border-radius: 16px; border: none;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
@@ -856,7 +860,7 @@ const AUTHOR_FAB_CSS = `
     animation: none;
   }
   .lm-save-dialog {
-    position: fixed; bottom: 80px; right: 20px; z-index: 120001;
+    position: fixed; bottom: 80px; right: 20px; z-index: 2147483646;
     width: 360px; max-height: 80vh; overflow-y: auto;
     background: rgba(15,15,30,0.94); border-radius: 20px; padding: 22px;
     backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -944,6 +948,60 @@ const AUTHOR_FAB_CSS = `
     font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     font-size: 9px; color: rgba(255,255,255,0.2); margin-bottom: 6px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  @media (max-width: 900px) {
+    .lm-author-fab {
+      left: 12px;
+      right: 12px;
+      bottom: max(10px, env(safe-area-inset-bottom, 0px) + 8px);
+      width: auto;
+      justify-content: center;
+      padding: 12px 14px;
+      border-radius: 14px;
+      cursor: pointer;
+      transform: none;
+      animation: none;
+      box-shadow: 0 10px 28px rgba(224,122,47,0.35);
+    }
+    .lm-author-fab:hover { transform: none; }
+
+    .lm-save-dialog {
+      left: 8px;
+      right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
+      width: auto;
+      max-height: none;
+      border-radius: 16px;
+      padding: 14px;
+      cursor: default;
+      overflow-y: auto;
+    }
+    .lm-step-edit-list {
+      max-height: none;
+      min-height: 160px;
+    }
+    .lm-step-edit-card { padding: 10px; }
+    .lm-step-action-select,
+    .lm-step-highlight-btn,
+    .lm-step-delete-btn {
+      min-height: 30px;
+    }
+    .lm-step-selector-hint {
+      font-size: 10px;
+      white-space: normal;
+      word-break: break-all;
+    }
+    .lm-save-input {
+      min-height: 38px;
+      font-size: 14px;
+    }
+    .lm-save-btn,
+    .lm-save-cancel {
+      min-height: 40px;
+      font-size: 13px;
+    }
   }
 `;
 

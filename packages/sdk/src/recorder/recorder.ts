@@ -441,6 +441,7 @@ export class WalkthroughRecorder {
   private createRecordingUI(): void {
     const root = this.deps.shadowDom.getRoot();
     this.deps.shadowDom.appendStyles(RECORDER_CSS);
+    const draggable = this.shouldEnableDrag();
 
     // Recording toolbar
     this.toolbarEl = document.createElement('div');
@@ -452,7 +453,9 @@ export class WalkthroughRecorder {
       <button class="lm-rec-stop" id="lm-rec-stop">■ Stop <kbd class="lm-kbd">Esc</kbd></button>
     `;
     root.appendChild(this.toolbarEl);
-    makeDraggable(this.toolbarEl, this.toolbarEl, { clearTransform: true });
+    if (draggable) {
+      makeDraggable(this.toolbarEl, this.toolbarEl, { clearTransform: true });
+    }
 
     // Hover highlight
     this.highlightEl = document.createElement('div');
@@ -467,7 +470,9 @@ export class WalkthroughRecorder {
       <div class="lm-rec-steps-title">Captured Steps</div>
     `;
     root.appendChild(this.stepListEl);
-    makeDraggable(this.stepListEl, this.stepListEl);
+    if (draggable) {
+      makeDraggable(this.stepListEl, this.stepListEl);
+    }
 
     // Toggle collapse
     const toggleBtn = this.stepListEl.querySelector('#lm-rec-toggle');
@@ -797,12 +802,16 @@ export class WalkthroughRecorder {
     return 'top';
   }
 
+  private shouldEnableDrag(): boolean {
+    return window.innerWidth >= 900;
+  }
+
 }
 
 const RECORDER_CSS = `
   .lm-rec-toolbar {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-    z-index: 100005; display: flex; align-items: center; gap: 12px;
+    z-index: 2147483645; display: flex; align-items: center; gap: 12px;
     background: rgba(30,30,54,0.85); backdrop-filter: blur(12px) saturate(160%);
     -webkit-backdrop-filter: blur(12px) saturate(160%);
     color: #FFF; border-radius: 14px;
@@ -845,7 +854,7 @@ const RECORDER_CSS = `
   }
 
   .lm-rec-highlight {
-    position: fixed; z-index: 100004; pointer-events: none; display: none;
+    position: fixed; z-index: 2147483643; pointer-events: none; display: none;
     border: 2px dashed #E07A2F; border-radius: 4px;
     background: rgba(224,122,47,0.04);
     transition: all 0.15s ease;
@@ -853,7 +862,7 @@ const RECORDER_CSS = `
 
   .lm-rec-steps {
     position: fixed; bottom: 16px; left: 16px; width: 260px; max-height: 260px;
-    overflow-y: auto; z-index: 100005; pointer-events: auto;
+    overflow-y: auto; z-index: 2147483644; pointer-events: auto;
     background: rgba(30,30,54,0.9); backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 12px; padding: 8px;
@@ -940,4 +949,43 @@ const RECORDER_CSS = `
     flex-shrink: 0;
   }
   .lm-rec-edit-delete:hover { background: rgba(239,68,68,0.2); }
+
+  @media (max-width: 900px) {
+    .lm-rec-toolbar {
+      left: 12px;
+      right: 12px;
+      top: max(10px, env(safe-area-inset-top, 0px) + 6px);
+      transform: none;
+      padding: 10px 12px;
+      gap: 8px;
+      border-radius: 12px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      cursor: default;
+    }
+    .lm-rec-indicator { min-width: 120px; }
+    .lm-rec-count { width: 100%; order: 3; font-size: 11px; }
+    .lm-kbd { display: none; }
+    .lm-rec-undo, .lm-rec-stop {
+      min-height: 32px;
+      padding: 6px 10px;
+      font-size: 11px;
+    }
+
+    .lm-rec-steps {
+      left: 8px;
+      right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      width: auto;
+      max-height: min(52vh, 360px);
+      padding: 10px;
+      border-radius: 14px;
+      cursor: default;
+    }
+    .lm-rec-step-card { padding: 10px; }
+    .lm-rec-card-title { font-size: 12px; }
+    .lm-rec-edit-input { font-size: 12px; padding: 8px; }
+    .lm-rec-edit-select { font-size: 11px; min-height: 30px; }
+    .lm-rec-edit-delete { min-height: 30px; }
+  }
 `;
