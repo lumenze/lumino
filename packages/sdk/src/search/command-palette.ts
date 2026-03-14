@@ -63,9 +63,11 @@ export class CommandPalette {
 
     this.containerEl.appendChild(this.launcherEl);
     this.repositionForAuthorMode();
-    makeDraggable(this.launcherEl, this.launcherEl, {
-      onDragged: () => { this.launcherDragged = true; },
-    });
+    if (!this.isMobileViewport()) {
+      makeDraggable(this.launcherEl, this.launcherEl, {
+        onDragged: () => { this.launcherDragged = true; },
+      });
+    }
   }
 
   async open(): Promise<void> {
@@ -99,10 +101,12 @@ export class CommandPalette {
       });
 
       const header = this.panelEl.querySelector('.lm-chat-header') as HTMLElement | null;
-      makeDraggable(this.panelEl, header ?? this.panelEl, {
-        onDragged: () => { this.panelDragged = true; },
-        filterInteractive: true,
-      });
+      if (!this.isMobileViewport()) {
+        makeDraggable(this.panelEl, header ?? this.panelEl, {
+          onDragged: () => { this.panelDragged = true; },
+          filterInteractive: true,
+        });
+      }
 
       const form = this.panelEl.querySelector('.lm-chat-form') as HTMLFormElement | null;
       form?.addEventListener('submit', (event) => {
@@ -167,29 +171,40 @@ export class CommandPalette {
   private repositionForAuthorMode(): void {
     const root = this.deps.shadowDom.getRoot();
     const hasAuthorFab = Boolean(root.querySelector('.lm-author-fab'));
+    const isMobile = this.isMobileViewport();
     const launcherBottom = hasAuthorFab ? 86 : 20;
     const panelBottom = hasAuthorFab ? 138 : 72;
 
     if (this.launcherEl && !this.launcherDragged) {
       this.launcherEl.style.left = '';
       this.launcherEl.style.top = '';
-      this.launcherEl.style.right = '20px';
-      this.launcherEl.style.bottom = `${launcherBottom}px`;
+      this.launcherEl.style.right = isMobile ? '8px' : '20px';
+      this.launcherEl.style.bottom = isMobile ? '8px' : `${launcherBottom}px`;
+      if (isMobile) {
+        this.launcherEl.style.left = '8px';
+      }
     }
 
     if (this.panelEl && !this.panelDragged) {
       this.panelEl.style.left = '';
       this.panelEl.style.top = '';
-      this.panelEl.style.right = '20px';
-      this.panelEl.style.bottom = `${panelBottom}px`;
+      this.panelEl.style.right = isMobile ? '8px' : '20px';
+      this.panelEl.style.bottom = isMobile ? '56px' : `${panelBottom}px`;
+      if (isMobile) {
+        this.panelEl.style.left = '8px';
+      }
     }
+  }
+
+  private isMobileViewport(): boolean {
+    return window.innerWidth < 900 || window.matchMedia?.('(pointer: coarse)').matches === true;
   }
 
 }
 
 const PALETTE_CSS = `
   .lm-chat-launcher {
-    position: fixed; right: 20px; bottom: 20px; z-index: 99970;
+    position: fixed; right: 20px; bottom: 20px; z-index: 2147483637;
     border: none; border-radius: 999px; padding: 12px 18px; cursor: pointer;
     background: linear-gradient(135deg, #E07A2F, #F5A623);
     color: #fff; font-weight: 700; font-size: 13px;
@@ -206,7 +221,7 @@ const PALETTE_CSS = `
     overflow: auto; background: #fff; border-radius: 18px; padding: 16px;
     border: 1px solid rgba(0,0,0,0.06);
     box-shadow: 0 24px 48px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.03);
-    z-index: 99970; opacity: 0; transform: translateY(8px) scale(0.98);
+    z-index: 2147483637; opacity: 0; transform: translateY(8px) scale(0.98);
     pointer-events: none; transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   }
@@ -262,5 +277,45 @@ const PALETTE_CSS = `
   .lm-chat-empty {
     border: 1.5px dashed #e5e7eb; border-radius: 12px; padding: 20px;
     font-size: 12px; color: #9ca3af; text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    .lm-chat-launcher {
+      left: 8px;
+      right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom, 0px) + 8px);
+      width: auto;
+      border-radius: 14px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .lm-chat-launcher:hover {
+      transform: none;
+      box-shadow: 0 8px 28px rgba(224,122,47,0.3);
+    }
+
+    .lm-chat-panel {
+      left: 8px;
+      right: 8px;
+      bottom: max(56px, env(safe-area-inset-bottom, 0px) + 52px);
+      top: max(8px, env(safe-area-inset-top, 0px) + 8px);
+      width: auto;
+      max-height: none;
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .lm-chat-header { cursor: default; }
+    .lm-chat-form {
+      flex-direction: column;
+      gap: 8px;
+    }
+    .lm-chat-submit {
+      width: 100%;
+      min-height: 38px;
+    }
+    .lm-chat-input {
+      min-height: 38px;
+      font-size: 14px;
+    }
   }
 `;
