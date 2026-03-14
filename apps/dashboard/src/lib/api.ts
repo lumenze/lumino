@@ -14,15 +14,16 @@ async function getToken(): Promise<string> {
   return cachedToken!;
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+async function request<T>(path: string, options?: RequestInit & { appId?: string }): Promise<T> {
   const token = await getToken();
+  const { appId, ...fetchOptions } = options ?? {};
   const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      'X-Lumino-App': 'novapay-dashboard',
-      ...options?.headers,
+      ...(appId ? { 'X-Lumino-App': appId } : {}),
+      ...fetchOptions?.headers,
     },
   });
 
@@ -35,10 +36,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
-  put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  get: <T>(path: string, appId?: string) => request<T>(path, { appId }),
+  post: <T>(path: string, body?: unknown, appId?: string) =>
+    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined, appId }),
+  put: <T>(path: string, body?: unknown, appId?: string) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined, appId }),
+  delete: <T>(path: string, appId?: string) => request<T>(path, { method: 'DELETE', appId }),
 };

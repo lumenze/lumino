@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useApp } from '@/lib/app-context';
 import StatusBadge from '@/components/StatusBadge';
 import {
   BarChart,
@@ -48,16 +49,19 @@ interface WalkthroughRow {
 type SortKey = 'title' | 'impressions' | 'starts' | 'completions' | 'completionRate';
 
 export default function AnalyticsPage() {
+  const { appId } = useApp();
   const [rows, setRows] = useState<WalkthroughRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('completions');
   const [sortAsc, setSortAsc] = useState(false);
 
   useEffect(() => {
+    if (!appId) return;
     async function load() {
       try {
+        setLoading(true);
         const wtRes = await api.get<{ data: { items: Walkthrough[] } }>(
-          '/walkthroughs?appId=novapay-dashboard&limit=50'
+          `/walkthroughs?appId=${encodeURIComponent(appId)}&limit=50`
         );
         const items = wtRes.data.items;
 
@@ -96,7 +100,7 @@ export default function AnalyticsPage() {
       }
     }
     load();
-  }, []);
+  }, [appId]);
 
   const totalImpressions = rows.reduce((s, r) => s + r.impressions, 0);
   const totalStarts = rows.reduce((s, r) => s + r.starts, 0);

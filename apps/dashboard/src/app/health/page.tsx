@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { HeartPulse, ShieldCheck, AlertTriangle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useApp } from '@/lib/app-context';
 import { cn } from '@/lib/utils';
 
 interface HealthOverview {
@@ -72,18 +73,22 @@ function ScoreRing({ score, size = 64 }: { score: number; size?: number }) {
 }
 
 export default function HealthPage() {
+  const { appId } = useApp();
   const [overview, setOverview] = useState<HealthOverview | null>(null);
   const [items, setItems] = useState<WalkthroughHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<WalkthroughHealth | null>(null);
 
   useEffect(() => {
+    if (!appId) return;
     async function load() {
       try {
+        setLoading(true);
+        const encodedAppId = encodeURIComponent(appId);
         const [overviewRes, itemsRes] = await Promise.allSettled([
-          api.get<{ data: HealthOverview }>('/health/apps/novapay-dashboard'),
+          api.get<{ data: HealthOverview }>(`/health/apps/${encodedAppId}`),
           api.get<{ data: { items: WalkthroughHealth[] } }>(
-            '/health/apps/novapay-dashboard/walkthroughs'
+            `/health/apps/${encodedAppId}/walkthroughs`
           ),
         ]);
 
@@ -96,7 +101,7 @@ export default function HealthPage() {
       }
     }
     load();
-  }, []);
+  }, [appId]);
 
   return (
     <div className="p-8">

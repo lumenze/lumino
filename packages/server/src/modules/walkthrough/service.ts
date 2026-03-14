@@ -69,6 +69,15 @@ export class WalkthroughService {
     });
   }
 
+  async listAppIds(): Promise<string[]> {
+    const results = await this.prisma.walkthrough.findMany({
+      select: { appId: true },
+      distinct: ['appId'],
+      orderBy: { appId: 'asc' },
+    });
+    return results.map((r) => r.appId);
+  }
+
   // ── Commands ────────────────────────────────────────────────────────
 
   async create(params: {
