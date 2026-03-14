@@ -9,8 +9,11 @@ import {
   HeartPulse,
   Settings,
   Sparkles,
+  ChevronDown,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApp } from '@/lib/app-context';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
@@ -22,6 +25,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { appId, setAppId, appIds, loading: appsLoading } = useApp();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-[240px] flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
@@ -37,6 +41,39 @@ export default function Sidebar() {
             <Sparkles className="h-2.5 w-2.5" />
             AI-Native DAP
           </div>
+        </div>
+      </div>
+
+      {/* App Selector */}
+      <div className="border-b border-white/[0.06] px-3 py-3">
+        <label className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <Globe className="h-3 w-3" />
+          Application
+        </label>
+        <div className="relative">
+          <select
+            value={appId}
+            onChange={(e) => setAppId(e.target.value)}
+            disabled={appsLoading || appIds.length === 0}
+            className={cn(
+              'w-full appearance-none rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 pr-8 text-xs font-medium text-slate-200 transition',
+              'hover:bg-white/[0.06] focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/30',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            {appsLoading ? (
+              <option>Loading...</option>
+            ) : appIds.length === 0 ? (
+              <option>No apps found</option>
+            ) : (
+              appIds.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))
+            )}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
         </div>
       </div>
 

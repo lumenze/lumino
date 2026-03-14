@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Search, ExternalLink, Route } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useApp } from '@/lib/app-context';
 import StatusBadge from '@/components/StatusBadge';
 import { cn } from '@/lib/utils';
 
@@ -31,16 +32,19 @@ const FILTER_DOTS: Record<string, string> = {
 };
 
 export default function WalkthroughsPage() {
+  const { appId } = useApp();
   const [walkthroughs, setWalkthroughs] = useState<Walkthrough[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => {
+    if (!appId) return;
     async function load() {
       try {
+        setLoading(true);
         const res = await api.get<{ data: { items: Walkthrough[] } }>(
-          '/walkthroughs?appId=novapay-dashboard&limit=50'
+          `/walkthroughs?appId=${encodeURIComponent(appId)}&limit=50`
         );
         setWalkthroughs(res.data.items);
       } catch (err) {
@@ -50,7 +54,7 @@ export default function WalkthroughsPage() {
       }
     }
     load();
-  }, []);
+  }, [appId]);
 
   const filtered = walkthroughs.filter((wt) => {
     const title = wt.versions[0]?.definition?.title?.toLowerCase() ?? '';

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, Copy, Code, Globe, Key, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApp } from '@/lib/app-context';
 
 const SDK_SNIPPET_HTML = `<script
   src="https://your-lumino-server.com/sdk/v1/lumino.js"
@@ -106,6 +107,7 @@ function CodeBlock({ title, code }: { title: string; code: string }) {
 }
 
 export default function SettingsPage() {
+  const { appId } = useApp();
   const [tab, setTab] = useState<'integration' | 'config'>('integration');
 
   return (
@@ -201,7 +203,7 @@ export default function SettingsPage() {
           <div className="glass-card rounded-2xl p-6">
             <h2 className="mb-4 text-sm font-bold">Application</h2>
             <div className="space-y-3">
-              <ConfigRow icon={Globe} label="App ID" value="novapay-dashboard" />
+              <ConfigRow icon={Globe} label="App ID" value={appId || '—'} />
               <ConfigRow
                 icon={Server}
                 label="Lumino Server"

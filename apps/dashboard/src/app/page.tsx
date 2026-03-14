@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Route, CheckCircle, Eye, TrendingUp, HeartPulse, ArrowRight, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useApp } from '@/lib/app-context';
 import StatCard from '@/components/StatCard';
 import StatusBadge from '@/components/StatusBadge';
 import { cn } from '@/lib/utils';
@@ -34,16 +35,19 @@ interface HealthOverview {
 }
 
 export default function OverviewPage() {
+  const { appId } = useApp();
   const [walkthroughs, setWalkthroughs] = useState<Walkthrough[]>([]);
   const [stats, setStats] = useState<Map<string, WalkthroughStats>>(new Map());
   const [health, setHealth] = useState<HealthOverview | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!appId) return;
     async function load() {
       try {
+        setLoading(true);
         const wtRes = await api.get<{ data: { items: Walkthrough[] } }>(
-          '/walkthroughs?appId=novapay-dashboard&limit=50'
+          `/walkthroughs?appId=${encodeURIComponent(appId)}&limit=50`
         );
         const items = wtRes.data.items;
         setWalkthroughs(items);
@@ -65,7 +69,7 @@ export default function OverviewPage() {
 
         try {
           const h = await api.get<{ data: HealthOverview }>(
-            '/health/apps/novapay-dashboard'
+            `/health/apps/${encodeURIComponent(appId)}`
           );
           setHealth(h.data);
         } catch {
@@ -78,7 +82,7 @@ export default function OverviewPage() {
       }
     }
     load();
-  }, []);
+  }, [appId]);
 
   const totalWalkthroughs = walkthroughs.length;
   const published = walkthroughs.filter((w) => w.status.toLowerCase() === 'published').length;

@@ -37,6 +37,17 @@ export function registerWalkthroughRoutes(app: FastifyInstance, service: Walkthr
   const authorPreHandler = [authHook, requireRole(UserRole.Author, UserRole.Admin)];
   const adminPreHandler = [authHook, requireRole(UserRole.Admin)];
 
+  // ── List all app IDs ───────────────────────────────────────────────
+
+  app.get(
+    '/api/v1/apps',
+    { preHandler: authPreHandler },
+    async () => {
+      const appIds = await service.listAppIds();
+      return { success: true, data: { items: appIds } };
+    },
+  );
+
   // ── List walkthroughs for an app ────────────────────────────────────
 
   app.get<{ Querystring: { appId: string; status?: string; page?: string; limit?: string } }>(
